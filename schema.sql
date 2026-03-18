@@ -182,7 +182,7 @@ CREATE TABLE public.attendance (
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Students can view own attendance" ON public.attendance
-  FOR SELECT USING (EXISTS (SELECT 1 FROM public.students WHERE id = student_id AND user_id = auth.uid()::uuid));
+  FOR SELECT USING (EXISTS (SELECT 1 FROM public.students WHERE id = attendance.student_id AND user_id = auth.uid()::uuid));
 CREATE POLICY "Teachers can manage attendance"   ON public.attendance
   FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()::uuid));
 CREATE POLICY "System can record attendance"     ON public.attendance FOR INSERT WITH CHECK (true);

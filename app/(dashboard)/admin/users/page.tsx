@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, RefreshCw, KeyRound } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -33,6 +33,9 @@ export default function AdminUsersPage() {
   const [deleteUser, setDeleteUser] = useState<User | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [resetUser, setResetUser] = useState<User | null>(null)
+  const [newPwd, setNewPwd] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<any>()
 
@@ -109,6 +112,27 @@ export default function AdminUsersPage() {
       toast.error(err.message || 'Failed to delete user')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!resetUser || newPwd.length < 8) { toast.error('Password must be at least 8 chars'); return }
+    try {
+      setResetting(true)
+      const res = await fetch('/api/admin/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: resetUser.id, newPassword: newPwd }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error)
+      toast.success(`Password reset for ${resetUser.full_name}`)
+      setResetUser(null)
+      setNewPwd('')
+    } catch (err: any) {
+      toast.error(err.message || 'Reset failed')
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -255,6 +279,21 @@ export default function AdminUsersPage() {
             {...register('role')}
           />
         </form>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal isOpen={!!resetUser} onClose={() => { setResetUser(null); setNewPwd('') }} title={`Reset Password — ${resetUser?.full_name}`} size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => { setResetUser(null); setNewPwd('') }}>Cancel</Button>
+            <Button variant="primary" loading={resetting} leftIcon={<KeyRound size={15} />} onClick={handleResetPassword}>Reset Password</Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Enter a new temporary password for this user. Ask them to change it after logging in.</p>
+          <Input label="New Password" type="password" placeholder="Min 8 characters" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
+        </div>
       </Modal>
 
       {/* Delete confirm */}

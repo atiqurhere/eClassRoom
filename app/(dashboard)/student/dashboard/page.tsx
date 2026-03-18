@@ -54,8 +54,8 @@ export default async function StudentDashboardPage() {
         )}
       </div>
 
-      {/* Stats — emoji only, no JSX in arrays */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
+      {/* Stats */}
+      <div className="dash-stats-grid">
         {[
           { emoji: '📚', label: 'My Courses',   value: courses.length,     sub: 'Enrolled subjects',        fg: '#4f8ef7', bg: '#4f8ef718' },
           { emoji: '📡', label: 'Live Classes', value: live.length,         sub: 'In session now',           fg: '#22c55e', bg: '#22c55e18' },
@@ -71,7 +71,7 @@ export default async function StudentDashboardPage() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 290px', gap: 20, alignItems: 'start' }}>
+      <div className="dash-grid-main">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Live now */}
@@ -101,7 +101,7 @@ export default async function StudentDashboardPage() {
             {!courses.length ? (
               <p style={{ textAlign: 'center', padding: '20px 0', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Your admin will assign you to a class.</p>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(200px,100%), 1fr))', gap: 10 }}>
                 {courses.slice(0, 6).map((c: any) => (
                   <Link key={c.id} href={`/student/classes/${c.id}`} style={{ padding: '12px', background: 'var(--bg-hover)', border, borderRadius: 10, textDecoration: 'none' }}>
                     <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</p>

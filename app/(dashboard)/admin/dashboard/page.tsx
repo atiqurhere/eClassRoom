@@ -38,8 +38,8 @@ export default async function AdminDashboardPage() {
         <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Overview of your institution&apos;s learning activity</p>
       </div>
 
-      {/* Stats — NO JSX in arrays, rendered inline */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14 }}>
+      {/* Stats */}
+      <div className="dash-stats-grid">
         {[
           { title: 'Total Users',    value: stats.totalUsers,       sub: `${rc('student')} students, ${rc('teacher')} teachers`, bg: '#4f8ef718', fg: '#4f8ef7', emoji: '👥' },
           { title: 'Active Classes', value: stats.totalClasses,     sub: 'Across all sections',    bg: '#8b5cf618', fg: '#8b5cf6', emoji: '📚' },

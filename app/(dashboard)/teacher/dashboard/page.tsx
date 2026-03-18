@@ -37,7 +37,7 @@ export default async function TeacherDashboardPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+      <div className="page-header">
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Teacher Dashboard</h1>
           <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>
@@ -49,8 +49,8 @@ export default async function TeacherDashboardPage() {
         </Link>
       </div>
 
-      {/* Stats — emoji only, no JSX in arrays */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 14 }}>
+      {/* Stats */}
+      <div className="dash-stats-grid">
         {[
           { emoji: '📚', label: 'My Courses',   value: courses.length,   sub: 'Active courses',          fg: '#4f8ef7', bg: '#4f8ef718' },
           { emoji: '📡', label: 'Live Classes', value: live.filter((l: any) => l.status === 'live').length, sub: 'Currently active', fg: '#22c55e', bg: '#22c55e18' },

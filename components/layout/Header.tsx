@@ -17,8 +17,9 @@ export function Header({ title, subtitle, onMenuToggle }: HeaderProps) {
       <div className="flex items-center gap-4">
         <button
           onClick={onMenuToggle}
-          className="p-2 rounded-lg transition-colors lg:hidden"
+          className="menu-toggle-btn p-2 rounded-lg transition-colors"
           style={{ color: 'var(--text-muted)', background: 'var(--bg-hover)' }}
+          aria-label="Toggle sidebar"
         >
           <Menu size={18} />
         </button>

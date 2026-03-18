@@ -38,25 +38,16 @@ export const authService = {
     return authData.user
   },
 
-  // Sign in
+  // Sign in — returns user, session, and role
   async signIn(email: string, password: string) {
     const supabase = createClient()
 
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
 
-    // Fetch user profile to get the role
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', data.user?.id)
-      .single()
-
-    return { ...data, profile }
+    // Use SECURITY DEFINER function to bypass RLS — avoids recursive policy null-role bug
+    const { data: role } = await supabase.rpc('get_my_role')
+    return { ...data, role: role as string | null }
   },
 
   // Sign out

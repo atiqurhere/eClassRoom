@@ -26,8 +26,44 @@ CREATE TABLE public.users (
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own profile"   ON public.users FOR SELECT USING (auth.uid()::uuid = id);
-CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
+-- Non-recursive admin policy: uses get_my_role() to avoid RLS infinite recursion
+CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (public.get_my_role() = 'admin');
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid()::uuid = id);
+CREATE POLICY "Admins can update all users"  ON public.users FOR UPDATE USING (public.get_my_role() = 'admin');
+CREATE POLICY "Trigger can insert users"     ON public.users FOR INSERT WITH CHECK (true);
+
+-- ── SECURITY DEFINER role helper — used by middleware + auth service ─────────
+-- This function bypasses RLS to safely return the current user's role.
+-- Used everywhere instead of direct table queries to avoid recursive RLS.
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS
+$$ SELECT role FROM public.users WHERE id = auth.uid()::uuid; $$;
+
+-- Validate student invite code (called from signup page, no auth required)
+CREATE OR REPLACE FUNCTION public.validate_student_code(p_code text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT CASE
+    WHEN si.id IS NULL THEN jsonb_build_object('valid', false, 'message', 'Invalid Student ID. Please contact the admin.')
+    WHEN si.user_id IS NOT NULL THEN jsonb_build_object('valid', false, 'message', 'This Student ID has already been used.')
+    ELSE jsonb_build_object('valid', true, 'name', si.full_name, 'class_id', si.class_id, 'shift', si.shift)
+  END
+  FROM (SELECT * FROM public.student_invites WHERE student_code = p_code) si
+  RIGHT JOIN (SELECT 1) dummy ON true
+  LIMIT 1;
+$$;
+
+-- Validate teacher invite code
+CREATE OR REPLACE FUNCTION public.validate_teacher_code(p_code text)
+RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT CASE
+    WHEN ti.id IS NULL THEN jsonb_build_object('valid', false, 'message', 'Invalid Teacher ID. Please contact the admin.')
+    WHEN ti.user_id IS NOT NULL THEN jsonb_build_object('valid', false, 'message', 'This Teacher ID has already been used.')
+    ELSE jsonb_build_object('valid', true, 'name', ti.full_name)
+  END
+  FROM (SELECT * FROM public.teacher_invites WHERE teacher_code = p_code) ti
+  RIGHT JOIN (SELECT 1) dummy ON true
+  LIMIT 1;
+$$;
 
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -381,6 +417,55 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ──────────────────────────────────────────────────────────────
+-- 12. STUDENT INVITES (Admin pre-registers students before signup)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE public.student_invites (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_code text UNIQUE NOT NULL,
+  full_name    text NOT NULL,
+  class_id     uuid REFERENCES public.classes(id) ON DELETE SET NULL,
+  course_ids   uuid[] DEFAULT '{}',
+  shift        text CHECK (shift IN ('morning', 'evening', 'afternoon', NULL)),
+  user_id      uuid UNIQUE REFERENCES public.users(id) ON DELETE SET NULL,
+  claimed_at   timestamptz,
+  created_by   uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at   timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.student_invites ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage student invites" ON public.student_invites
+  FOR ALL USING (public.get_my_role() = 'admin');
+CREATE POLICY "Students can view own invite" ON public.student_invites
+  FOR SELECT USING (user_id = auth.uid()::uuid);
+
+CREATE INDEX idx_student_invites_code    ON public.student_invites(student_code);
+CREATE INDEX idx_student_invites_user_id ON public.student_invites(user_id);
+
+-- ──────────────────────────────────────────────────────────────
+-- 13. TEACHER INVITES (Admin pre-registers teachers before signup)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE public.teacher_invites (
+  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  teacher_code text UNIQUE NOT NULL,
+  full_name    text NOT NULL,
+  user_id      uuid UNIQUE REFERENCES public.users(id) ON DELETE SET NULL,
+  claimed_at   timestamptz,
+  created_by   uuid REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at   timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.teacher_invites ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can manage teacher invites" ON public.teacher_invites
+  FOR ALL USING (public.get_my_role() = 'admin');
+CREATE POLICY "Teachers can view own invite" ON public.teacher_invites
+  FOR SELECT USING (user_id = auth.uid()::uuid);
+
+CREATE INDEX idx_teacher_invites_code    ON public.teacher_invites(teacher_code);
+CREATE INDEX idx_teacher_invites_user_id ON public.teacher_invites(user_id);
 
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- STEP 2 (run separately in SQL Editor if needed):

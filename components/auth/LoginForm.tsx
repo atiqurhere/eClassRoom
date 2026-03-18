@@ -27,7 +27,7 @@ export function LoginForm() {
       const result = await authService.signIn(data.email, data.password)
       if (result.user) {
         toast.success('Welcome back!')
-        const role = result.profile?.role || 'student'
+        const role = result.role || 'student'
         window.location.href = `/${role}/dashboard`
       }
     } catch (error: any) {

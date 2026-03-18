@@ -27,8 +27,7 @@ export function LoginForm() {
       const result = await authService.signIn(data.email, data.password)
       if (result.user) {
         toast.success('Welcome back!')
-        router.push('/')
-        router.refresh()
+        window.location.href = '/'
       }
     } catch (error: any) {
       toast.error(error.message || 'Login failed. Please check your credentials.')
@@ -58,8 +57,7 @@ export function LoginForm() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
       toast.success('Welcome back!')
-      router.push('/')
-      router.refresh()
+      window.location.href = '/'
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
     } finally {

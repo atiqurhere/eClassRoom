@@ -222,7 +222,15 @@ export default function AdminUsersPage() {
                           <Pencil size={13} />
                         </button>
                         <button
-                          onClick={() => setDeleteUser(u)}
+                          onClick={() => { setResetUser(u); setNewPwd('') }}
+                            className="p-1.5 rounded-lg transition-colors"
+                            title="Reset password"
+                            style={{ color: 'var(--accent-orange)', background: 'rgba(245,158,11,0.1)' }}
+                          >
+                            <KeyRound size={13} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteUser(u)}
                           className="p-1.5 rounded-lg transition-colors"
                           style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}
                         >

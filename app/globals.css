@@ -37,6 +37,10 @@
 
 html {
   scroll-behavior: smooth;
+  height: 100%;
+  /* Prevent iOS font size inflation on landscape rotation */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -46,6 +50,15 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  height: 100%;
+  /* Prevent iOS callout / selection tap highlight */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent iOS tap callout on interactive elements */
+button, a, [role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* Scrollbar */

@@ -66,10 +66,22 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   // ── Get role via SECURITY DEFINER function (bypasses RLS, no recursion) ─
+  // Falls back to direct query if the function hasn't been created in DB yet
   let role: string | null = null
   if (user) {
-    const { data } = await supabase.rpc('get_my_role')
-    role = data ?? null
+    const { data: rpcRole, error: rpcError } = await supabase.rpc('get_my_role')
+    if (!rpcError && rpcRole) {
+      role = rpcRole as string
+    } else {
+      // Fallback: direct table query. The "Users can view own profile" policy
+      // (auth.uid()::uuid = id) is non-recursive and always grants self-access.
+      const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      role = profile?.role ?? null
+    }
   }
 
   const safeRole = role || 'student'

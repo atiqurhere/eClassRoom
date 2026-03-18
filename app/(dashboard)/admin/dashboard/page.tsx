@@ -57,7 +57,7 @@ export default async function AdminDashboardPage() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+      <div className="dash-grid-main">
 
         {/* Live Classes */}
         <div style={{ background: card, border, borderRadius: 16, padding: 22 }}>

@@ -66,7 +66,7 @@ export default async function TeacherDashboardPage() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
+      <div className="dash-grid-main">
 
         {/* My Courses */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>

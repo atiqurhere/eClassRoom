@@ -1,63 +1,181 @@
-# 🚀 FULL LMS MASTER PLAN (Single Institution, Production-Ready)
+# 🚀 FINAL LMS MASTER PLAN (COMPLETE + LOGICAL + PRODUCTION READY)
 
 ---
 
-# 🧠 PROJECT OVERVIEW
+# 🧠 SYSTEM OVERVIEW
 
-A **modern, scalable LMS web app (PWA)** for a single institution with:
+A **single-institution LMS (Web App / PWA)** with:
 
 * 3 roles: Admin, Teacher, Student
-* Embedded live classes (no redirects)
+* Embedded live classes
 * Real-time notifications
 * Automated recording system
-* Clean, fast, mobile-friendly UI
-
----
-
-# 🎯 CORE STRATEGY (FINAL DECISIONS)
-
-* Live Classes → Jitsi (embedded inside app)
-* Backend → Supabase (Free → Pro later)
-* Recording Storage → YouTube (private/unlisted)
-* Frontend → Next.js (PWA)
-* File Storage → Supabase (small files only)
+* Clean and scalable architecture
 
 ---
 
 # 👥 USER ROLES
 
-## 👨‍💼 ADMIN
+---
 
-* Full system control
-* Creates users (teachers/students)
-* Assigns classes & teachers
-* Manages schedules
-* Sends announcements
-* Monitors live classes
-* Views analytics & reports
+## 👨‍💼 ADMIN (Full Control)
+
+### 🧩 User Management
+
+* Create teacher accounts
+* Create student accounts
+* Generate unique Student IDs
+* Reset passwords
+* Edit/delete users
+* Bulk import (CSV upload)
 
 ---
 
-## 👩‍🏫 TEACHER
+### 🎓 Academic Management
 
-* Manages assigned classes
-* Uploads materials
-* Creates assignments
-* Starts live classes
-* Records sessions
-* Tracks attendance
-* Grades students
+* Create:
+
+  * Classes (e.g. Class 10A)
+  * Courses/Subjects
+* Assign:
+
+  * Teachers → Classes
+  * Students → Classes
+* Manage schedules (weekly timetable)
 
 ---
 
-## 👨‍🎓 STUDENT
+### 📊 Monitoring (CORE FEATURE)
 
-* Views dashboard (classes, assignments, announcements)
-* Joins live classes
-* Accesses materials
-* Submits assignments
-* Receives notifications
-* Watches recordings
+* View live classes in real-time:
+
+  * Class name
+  * Student count
+  * Duration
+* Join class silently (observer mode)
+* View all recordings (embedded)
+* Track:
+
+  * Teacher activity
+  * Student attendance
+
+---
+
+### ⚙️ Platform Control
+
+* Announcements (global / class-based)
+* Manage system settings
+* View analytics & reports
+
+---
+
+## 👩‍🏫 TEACHER PANEL
+
+---
+
+### 📚 Class Management
+
+* View assigned classes
+* View student list
+* View attendance % per student
+* Manage class schedule
+
+---
+
+### 📂 Learning Materials
+
+* Upload:
+
+  * PDFs
+  * Slides
+* Stored in cloud storage (small files)
+
+---
+
+### 📝 Assignment System
+
+* Create assignments
+* Set deadlines
+* Attach files
+* Accept submissions
+* Grade + feedback
+
+---
+
+### 🎥 Live Classes (Embedded)
+
+* Start class → opens inside LMS
+* Features:
+
+  * Video/audio
+  * Screen sharing
+  * Chat
+  * Mute controls
+  * Raise hand
+
+---
+
+### 🎬 Recording
+
+* Start/stop recording
+* Auto upload to video platform
+* Link saved in system
+
+---
+
+### 📊 Attendance
+
+* Auto (on join)
+* Manual override
+
+---
+
+## 👨‍🎓 STUDENT PANEL
+
+---
+
+### 🏠 Dashboard
+
+* Today’s classes
+* Upcoming assignments
+* Announcements
+* Notifications
+
+---
+
+### 📘 Courses
+
+* View materials
+* Download files
+* Watch recordings (inside LMS)
+
+---
+
+### 🎥 Live Class
+
+* Join class inside platform
+* Chat with teacher
+* Ask questions
+* Participate in polls (future)
+
+---
+
+### 📝 Assignments
+
+* Download tasks
+* Upload submissions
+* View grades
+* Read feedback
+
+---
+
+### 👤 Profile (IMPORTANT – NEW)
+
+* Name
+* Email
+* Profile photo
+* Notification preferences
+* Password change
 
 ---
 
@@ -67,143 +185,217 @@ A **modern, scalable LMS web app (PWA)** for a single institution with:
 
 ## 1️⃣ AUTHENTICATION
 
-* Email + password login
+* Email login
 * Student ID login
 * Password reset
-* Role-based access control
+* Role-based access
 
 ---
 
-## 2️⃣ DASHBOARD (ROLE-BASED)
+## 2️⃣ COURSE MANAGEMENT
 
-### Admin Dashboard
-
-* Live classes overview
-* Total users
-* Reports & analytics
-
-### Teacher Dashboard
-
-* Today’s classes
-* Assignments
-* Student activity
-
-### Student Dashboard
-
-* Today’s classes
-* Upcoming assignments
-* Notifications
+* Classes
+* Subjects
+* Teacher assignment
+* Student enrollment
 
 ---
 
-## 3️⃣ COURSE & CLASS MANAGEMENT
+## 3️⃣ 🎥 LIVE CLASS SYSTEM
 
-* Create classes (e.g. Class 10A)
-* Assign teachers
-* Assign students
-* Create subjects/courses
-* Weekly schedule system
+### Key Logic:
+
+* Unique room per session
+* Embedded inside LMS (no redirect)
+* Session tracking (start/end time)
 
 ---
 
-## 4️⃣ 🎥 LIVE CLASS SYSTEM (JITSI EMBEDDED)
+## 4️⃣ 🎬 RECORDING SYSTEM (IMPORTANT FIX)
 
 ### Flow:
 
-* Teacher clicks "Start Class"
-* System generates unique room_id
-* Opens embedded video inside LMS
-
-### Features:
-
-* Video/audio
-* Screen sharing
-* Chat
-* Raise hand
-* Mute controls
-
-### Student Flow:
-
-Dashboard → Course → Join Class → Embedded Video
+* Record class
+* Process video
+* Upload to external video platform - Youtube private
+* Save only video link
 
 ---
 
-## 5️⃣ 🎬 RECORDING SYSTEM
+## 5️⃣ 📊 ATTENDANCE SYSTEM
 
-### Flow:
+### Tracks:
 
-1. Teacher clicks "Record"
-2. Jitsi records via Jibri
-3. Backend detects recording
-4. Auto upload to YouTube (private/unlisted)
-5. Save video URL in database
-
-### Storage:
-
-* DO NOT store videos in DB
-* Store only YouTube links
+* Join time
+* Leave time
+* Duration
+* Status (present/absent)
 
 ---
 
-## 6️⃣ 📊 ATTENDANCE SYSTEM
+## 6️⃣ 📝 ASSIGNMENT SYSTEM
 
-### Auto Tracking:
-
-* When student joins class → mark present
-* Store join_time & leave_time
-
-### Manual Option:
-
-* Teacher can adjust attendance
-
----
-
-## 7️⃣ 📝 ASSIGNMENT SYSTEM
-
-* Create assignments
-* Set deadlines
-* Upload files (PDF, docs)
-* Student submissions
-* Teacher grading
-* Feedback system
-
----
-
-## 8️⃣ 🔔 NOTIFICATION SYSTEM (CRITICAL)
-
-### TYPES:
-
-#### Admin → All
-
-* Announcements
-
-#### Teacher → Class
-
-* Assignments
-* Class start alerts
-* Materials uploaded
-
-#### System Auto
-
-* Class reminders
-* Deadline alerts
-
-#### Personal
-
-* Grades
+* Task creation
+* File upload
+* Submission system
+* Grading
 * Feedback
 
 ---
 
-### DELIVERY:
+## 7️⃣ 🔔 NOTIFICATION SYSTEM (FULL)
 
-1. In-App (Realtime via Supabase)
-2. Email (important alerts)
-3. Push Notifications (future)
+### Types:
+
+* Admin → All
+* Teacher → Class
+* System → Auto
+* Personal → Individual
 
 ---
 
-### Notification Table:
+### Delivery:
+
+* In-app (real-time)
+* Email (important only)
+* Push (future)
+
+---
+
+## 8️⃣ 💬 MESSAGING SYSTEM (MISSING BEFORE ✅)
+
+* Teacher ↔ Students (class chat)
+* Admin → All users
+* Basic chat system
+
+---
+
+## 9️⃣ 👁️ CLASS MONITORING SYSTEM
+
+### Admin Can:
+
+* View live classes
+* See student count
+* Join silently
+* Check attendance
+* Track teacher activity
+
+---
+
+## 🔟 📅 SCHEDULING SYSTEM (NEW IMPORTANT)
+
+* Weekly timetable
+* Class time slots
+* Auto reminders
+* Conflict prevention
+
+---
+
+## 1️⃣1️⃣ 📊 REPORTS & ANALYTICS (NEW)
+
+### Admin:
+
+* Attendance reports
+* Teacher performance
+* Student engagement
+
+### Teacher:
+
+* Class performance
+* Assignment stats
+
+---
+
+## 1️⃣2️⃣ ⚙️ SETTINGS MODULE (NEW)
+
+* Notification preferences
+* Profile settings
+* System config (admin only)
+
+---
+
+# 🗄️ DATABASE STRUCTURE (FINAL)
+
+---
+
+## Users
+
+id
+name
+email
+role
+
+---
+
+## Students
+
+id
+user_id
+student_id
+class_id
+
+---
+
+## Classes
+
+id
+class_name
+teacher_id
+
+---
+
+## Courses
+
+id
+course_name
+class_id
+
+---
+
+## LiveClasses
+
+id
+class_id
+teacher_id
+room_id
+start_time
+end_time
+recording_url
+
+---
+
+## Attendance
+
+id
+student_id
+class_id
+join_time
+leave_time
+status
+
+---
+
+## Assignments
+
+id
+course_id
+title
+due_date
+
+---
+
+## Submissions
+
+id
+assignment_id
+student_id
+file_url
+grade
+feedback
+
+---
+
+## Notifications
 
 id
 title
@@ -218,136 +410,36 @@ created_at
 
 ---
 
-### UI:
+## Messages (NEW)
 
-* Notification bell 🔔
-* Unread count
-* Click → redirect to content
-* Filter by type
-
----
-
-## 9️⃣ 💬 MESSAGING SYSTEM
-
-* Teacher → Students (class-based)
-* Admin → All users
-* In-app chat (basic)
+id
+sender_id
+receiver_id / class_id
+message
+created_at
 
 ---
 
-## 🔟 👁️ CLASS MONITORING SYSTEM (UNIQUE FEATURE)
+## Schedule (NEW)
 
-### Admin Panel:
-
-* See active classes
-* View student count
-* Join silently
-* Monitor attendance
-* Access recordings
-
----
-
-# 🗄️ DATABASE STRUCTURE
-
-## Users
-
-* id
-* name
-* email
-* role
+id
+class_id
+course_id
+day
+start_time
+end_time
 
 ---
 
-## Students
-
-* id
-* user_id
-* student_id
-* class_id
+# ⚙️ TECH STACK (FINAL)
 
 ---
-
-## Classes
-
-* id
-* class_name
-* teacher_id
-
----
-
-## Courses
-
-* id
-* name
-* class_id
-
----
-
-## LiveClasses
-
-* id
-* class_id
-* teacher_id
-* room_id
-* start_time
-* end_time
-* recording_url
-
----
-
-## Attendance
-
-* id
-* student_id
-* class_id
-* join_time
-* leave_time
-* status
-
----
-
-## Assignments
-
-* id
-* course_id
-* title
-* due_date
-
----
-
-## Submissions
-
-* id
-* assignment_id
-* student_id
-* file_url
-* grade
-* feedback
-
----
-
-## Notifications
-
-* id
-* title
-* message
-* type
-* sender_id
-* target_role
-* class_id
-* user_id
-* is_read
-* created_at
-
----
-
-# ⚙️ TECH STACK
 
 ## Frontend
 
-* Next.js (React)
+* React + Next.js
 * Tailwind CSS
-* PWA enabled
+* PWA
 
 ---
 
@@ -356,131 +448,89 @@ created_at
 * Supabase
 
   * Auth
-  * PostgreSQL DB
+  * PostgreSQL
   * Realtime
 
 ---
 
-## Live Video
+## Live Classes
 
-* Jitsi (iframe/API integration)
+* Embedded video system (Jitsi)
 
 ---
 
-## Recording
+## Recording Storage
 
-* Jitsi (Jibri)
-* YouTube API (auto upload)
+* External video platform (YouTube – private)
 
 ---
 
 ## File Storage
 
-* Supabase Storage (small files)
+* Cloud storage (small files only)
 
 ---
 
 ## Email System
 
-* SMTP / Resend (later)
-
----
-
-# 🔔 NOTIFICATION LOGIC
-
-### Class Start:
-
-* Trigger notification
-* Send in-app + email
-
-### Assignment Created:
-
-* Notify class students
-
-### Deadline Reminder:
-
-* Auto trigger (cron job)
-
----
-
-# 📱 PLATFORM TYPE
-
-## Web App (PWA)
-
-* Mobile responsive
-* Installable
-* Works like app
-
----
-
-## Native Apps
-
-* NOT needed initially
-* Build later if needed
+* SMTP / email API
 
 ---
 
 # ⏳ DEVELOPMENT ROADMAP
 
-## Phase 1 (MVP – 2–4 Months)
+---
 
-* Auth system
+## Phase 1 (MVP)
+
+* Auth
 * Dashboard
-* Class & course system
-* Jitsi integration
-* Basic attendance
+* Class system
+* Live class (basic)
 * Assignment system
 
 ---
 
-## Phase 2 (Growth – 2–3 Months)
+## Phase 2
 
-* YouTube recording automation
-* Notification system
-* Admin monitoring dashboard
-* Email alerts
+* Notifications
+* Recording automation
+* Monitoring dashboard
+* Reports
 
 ---
 
-## Phase 3 (Advanced)
+## Phase 3
 
-* AI summaries
-* Analytics dashboard
-* Engagement tracking
+* AI features
 * Push notifications
+* Advanced analytics
 
 ---
 
-# 🚀 ADVANCED FEATURES (FUTURE)
+# ⚠️ CRITICAL BEST PRACTICES
 
-* AI lecture summaries
-* Student engagement scoring
-* Teacher performance tracking
-* Smart recommendations
-
----
-
-# ⚠️ IMPORTANT RULES
-
-* NEVER store videos in database
-* ALWAYS embed live classes inside app
-* KEEP UI simple and fast
-* USE email only for important alerts
-* BUILD scalable structure from start
+* Do NOT store videos in database
+* Always embed live classes
+* Use role-based access strictly
+* Keep UI simple and fast
+* Use notifications wisely (no spam)
 
 ---
 
 # 🎯 FINAL RESULT
 
-You will have:
+A complete LMS with:
 
-✅ Fully functional LMS
 ✅ Live classes inside platform
-✅ Automated recording system
+✅ Recording + playback system
 ✅ Real-time notifications
-✅ Admin monitoring system
+✅ Admin monitoring
+✅ Assignment + grading system
+✅ Attendance tracking
+✅ Messaging + scheduling
 ✅ Scalable architecture
 
 ---
 
-# 🏁 END OF MASTER PLAN
+# 🏁 END OF FINAL PLAN

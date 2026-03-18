@@ -1,16 +1,14 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, BookOpen, Users, Pencil, Trash2 } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
+import { Plus, Search, BookOpen, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
 import { Modal, ConfirmModal } from '@/components/ui/Modal'
 import { SectionCard } from '@/components/ui/Card'
 import { AvatarWithName } from '@/components/ui/Avatar'
 import { SkeletonRow } from '@/components/ui/Loading'
 import { toast } from 'sonner'
-import { useForm } from 'react-hook-form'
+import { createClient } from '@/lib/supabase/client'
 
 interface ClassRecord {
   id: string
@@ -18,9 +16,7 @@ interface ClassRecord {
   section: string
   academic_year: string
   teacher_id: string
-  // Supabase join returns a single object for fkey relations
-  users?: { full_name: string } | { full_name: string }[] | null
-  _count?: { students: number }
+  users?: { full_name: string } | null
 }
 
 export default function AdminClassesPage() {
@@ -34,16 +30,16 @@ export default function AdminClassesPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<any>()
+  const [form, setForm] = useState({ class_name: '', section: '', academic_year: '', teacher_id: '' })
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     const supabase = createClient()
     const [classRes, teacherRes] = await Promise.all([
-      supabase.from('classes').select('id, class_name, section, academic_year, teacher_id, users!classes_teacher_id_fkey(full_name)').order('class_name'),
+      fetch('/api/admin/classes').then(r => r.json()),
       supabase.from('users').select('id, full_name').eq('role', 'teacher'),
     ])
-    setClasses(classRes.data || [])
+    setClasses(classRes.classes || [])
     setTeachers(teacherRes.data || [])
     setLoading(false)
   }, [])
@@ -54,25 +50,44 @@ export default function AdminClassesPage() {
     !search || c.class_name.toLowerCase().includes(search.toLowerCase())
   )
 
-  const handleSave = async (data: any) => {
+  const openCreate = () => {
+    setForm({ class_name: '', section: '', academic_year: '', teacher_id: '' })
+    setEditItem(null)
+    setShowModal(true)
+  }
+  const openEdit = (cls: ClassRecord) => {
+    setForm({ class_name: cls.class_name, section: cls.section || '', academic_year: cls.academic_year || '', teacher_id: cls.teacher_id || '' })
+    setEditItem(cls)
+    setShowModal(true)
+  }
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.class_name.trim()) { toast.error('Class name is required'); return }
+    setSaving(true)
     try {
-      setSaving(true)
-      const supabase = createClient()
+      let res: Response
       if (editItem) {
-        const { error } = await supabase.from('classes').update(data).eq('id', editItem.id)
-        if (error) throw error
-        toast.success('Class updated')
+        res = await fetch(`/api/admin/classes?id=${editItem.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
       } else {
-        const { error } = await supabase.from('classes').insert(data)
-        if (error) throw error
-        toast.success('Class created')
+        res = await fetch('/api/admin/classes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+        })
       }
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to save')
+      toast.success(editItem ? 'Class updated' : 'Class created')
       setShowModal(false)
       setEditItem(null)
-      reset()
       fetchData()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to save class')
+      toast.error(err.message)
     } finally {
       setSaving(false)
     }
@@ -80,11 +95,11 @@ export default function AdminClassesPage() {
 
   const handleDelete = async () => {
     if (!deleteItem) return
+    setDeleting(true)
     try {
-      setDeleting(true)
-      const supabase = createClient()
-      const { error } = await supabase.from('classes').delete().eq('id', deleteItem.id)
-      if (error) throw error
+      const res = await fetch(`/api/admin/classes?id=${deleteItem.id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to delete')
       toast.success('Class deleted')
       setDeleteItem(null)
       fetchData()
@@ -95,13 +110,13 @@ export default function AdminClassesPage() {
     }
   }
 
+  const inp  = { width: '100%', padding: '9px 12px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.875rem', boxSizing: 'border-box' as const }
+
   return (
     <div className="space-y-6">
       <div className="page-header flex items-center justify-between">
         <div><h1>Class Management</h1><p>Manage classes and assign teachers</p></div>
-        <Button variant="gradient" leftIcon={<Plus size={16} />} onClick={() => { reset(); setEditItem(null); setShowModal(true) }}>
-          New Class
-        </Button>
+        <Button variant="gradient" leftIcon={<Plus size={16} />} onClick={openCreate}>New Class</Button>
       </div>
 
       <SectionCard
@@ -122,7 +137,7 @@ export default function AdminClassesPage() {
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No classes yet</td></tr>
+              <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No classes yet — click &quot;New Class&quot; to create one.</td></tr>
             ) : (
               filtered.map(cls => (
                 <tr key={cls.id}>
@@ -137,19 +152,12 @@ export default function AdminClassesPage() {
                   <td>{cls.section || '—'}</td>
                   <td>{cls.academic_year || '—'}</td>
                   <td>
-                    {cls.users ? (
-                      <AvatarWithName name={(cls.users as any)?.full_name} size="xs" />
-                    ) : <span style={{ color: 'var(--text-muted)' }}>Unassigned</span>}
+                    {cls.users ? <AvatarWithName name={(cls.users as any)?.full_name} size="xs" /> : <span style={{ color: 'var(--text-muted)' }}>Unassigned</span>}
                   </td>
                   <td>
                     <div className="flex gap-2">
-                      <button onClick={() => { setEditItem(cls); reset({ class_name: cls.class_name, section: cls.section, academic_year: cls.academic_year, teacher_id: cls.teacher_id }); setShowModal(true) }}
-                        className="p-1.5 rounded-lg" style={{ color: 'var(--accent-blue)', background: 'rgba(79,142,247,0.1)' }}>
-                        <Pencil size={13} />
-                      </button>
-                      <button onClick={() => setDeleteItem(cls)} className="p-1.5 rounded-lg" style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}>
-                        <Trash2 size={13} />
-                      </button>
+                      <button onClick={() => openEdit(cls)} className="p-1.5 rounded-lg" style={{ color: 'var(--accent-blue)', background: 'rgba(79,142,247,0.1)' }}><Pencil size={13} /></button>
+                      <button onClick={() => setDeleteItem(cls)} className="p-1.5 rounded-lg" style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}><Trash2 size={13} /></button>
                     </div>
                   </td>
                 </tr>
@@ -159,25 +167,39 @@ export default function AdminClassesPage() {
         </table>
       </SectionCard>
 
+      {/* Create/Edit Modal */}
       <Modal isOpen={showModal} onClose={() => { setShowModal(false); setEditItem(null) }}
         title={editItem ? 'Edit Class' : 'Create New Class'} size="sm"
         footer={
           <>
             <Button variant="secondary" onClick={() => { setShowModal(false); setEditItem(null) }}>Cancel</Button>
-            <Button variant="gradient" loading={saving} onClick={handleSubmit(handleSave)}>
+            <Button variant="gradient" loading={saving} onClick={handleSave as any}>
               {editItem ? 'Save Changes' : 'Create Class'}
             </Button>
           </>
         }>
-        <form className="space-y-4">
-          <Input label="Class Name" placeholder="e.g. Class 10A" error={errors.class_name?.message as string} {...register('class_name', { required: 'Class name is required' })} />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Section" placeholder="e.g. A" {...register('section')} />
-            <Input label="Academic Year" placeholder="e.g. 2026" {...register('academic_year')} />
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Class Name *</label>
+            <input value={form.class_name} onChange={e => setForm(p => ({ ...p, class_name: e.target.value }))} required placeholder="e.g. Class 10A" style={inp} />
           </div>
-          <Select label="Assign Teacher" placeholder="Select teacher"
-            options={teachers.map(t => ({ value: t.id, label: t.full_name }))}
-            {...register('teacher_id')} />
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Section</label>
+              <input value={form.section} onChange={e => setForm(p => ({ ...p, section: e.target.value }))} placeholder="e.g. A" style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Academic Year</label>
+              <input value={form.academic_year} onChange={e => setForm(p => ({ ...p, academic_year: e.target.value }))} placeholder="e.g. 2026" style={inp} />
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Assign Teacher</label>
+            <select value={form.teacher_id} onChange={e => setForm(p => ({ ...p, teacher_id: e.target.value }))} style={inp}>
+              <option value="">No teacher assigned</option>
+              {teachers.map(t => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+            </select>
+          </div>
         </form>
       </Modal>
 

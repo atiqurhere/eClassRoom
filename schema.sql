@@ -25,10 +25,9 @@ CREATE TABLE public.users (
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own profile"   ON public.users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
-CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid() = id);
--- Inserts are handled via service role in the admin API route
+CREATE POLICY "Users can view own profile"   ON public.users FOR SELECT USING (auth.uid()::uuid = id);
+CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
+CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid()::uuid = id);
 
 -- Auto-update updated_at
 CREATE OR REPLACE FUNCTION update_updated_at()
@@ -53,13 +52,13 @@ CREATE TABLE public.classes (
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can view classes" ON public.classes FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Admins can manage classes"            ON public.classes FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Admins can manage classes"            ON public.classes FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE TRIGGER classes_updated_at BEFORE UPDATE ON public.classes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- ──────────────────────────────────────────────────────────────
--- 3. STUDENTS (profile extension for users with role='student')
+-- 3. STUDENTS
 -- ──────────────────────────────────────────────────────────────
 CREATE TABLE public.students (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -72,15 +71,15 @@ CREATE TABLE public.students (
 
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Students can view own record"           ON public.students FOR SELECT USING (user_id = auth.uid());
-CREATE POLICY "Teachers can view their class students" ON public.students FOR SELECT USING (EXISTS (SELECT 1 FROM public.classes WHERE id = class_id AND teacher_id = auth.uid()));
-CREATE POLICY "Admins can manage all students"         ON public.students FOR ALL   USING (EXISTS (SELECT 1 FROM public.users  WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Students can view own record"           ON public.students FOR SELECT USING (user_id = auth.uid()::uuid);
+CREATE POLICY "Teachers can view their class students" ON public.students FOR SELECT USING (EXISTS (SELECT 1 FROM public.classes WHERE id = class_id AND teacher_id = auth.uid()::uuid));
+CREATE POLICY "Admins can manage all students"         ON public.students FOR ALL   USING (EXISTS (SELECT 1 FROM public.users  WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE INDEX idx_students_user_id  ON public.students(user_id);
 CREATE INDEX idx_students_class_id ON public.students(class_id);
 
 -- ──────────────────────────────────────────────────────────────
--- 4. COURSES (subjects within a class)
+-- 4. COURSES
 -- ──────────────────────────────────────────────────────────────
 CREATE TABLE public.courses (
   id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -94,8 +93,8 @@ CREATE TABLE public.courses (
 ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Authenticated users can view courses" ON public.courses FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Teachers can manage own courses"      ON public.courses FOR ALL USING (teacher_id = auth.uid());
-CREATE POLICY "Admins can manage all courses"        ON public.courses FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Teachers can manage own courses"      ON public.courses FOR ALL USING (teacher_id = auth.uid()::uuid);
+CREATE POLICY "Admins can manage all courses"        ON public.courses FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE INDEX idx_courses_class_id   ON public.courses(class_id);
 CREATE INDEX idx_courses_teacher_id ON public.courses(teacher_id);
@@ -117,13 +116,17 @@ ALTER TABLE public.course_materials ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Enrolled users and teachers can view materials" ON public.course_materials
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
-    OR EXISTS (SELECT 1 FROM public.courses WHERE id = course_id AND teacher_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM public.students s JOIN public.courses c ON c.class_id = s.class_id WHERE c.id = course_id AND s.user_id = auth.uid())
+    EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin')
+    OR EXISTS (SELECT 1 FROM public.courses WHERE id = course_id AND teacher_id = auth.uid()::uuid)
+    OR EXISTS (
+      SELECT 1 FROM public.students s
+      JOIN public.courses c ON c.class_id = s.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()::uuid
+    )
   );
 
 CREATE POLICY "Teachers and admins can manage materials" ON public.course_materials
-  FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('teacher', 'admin')));
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher', 'admin')));
 
 CREATE INDEX idx_course_materials_course_id ON public.course_materials(course_id);
 
@@ -148,12 +151,16 @@ ALTER TABLE public.live_classes ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Students can view live classes for their courses" ON public.live_classes
   FOR SELECT USING (
-    EXISTS (SELECT 1 FROM public.students s JOIN public.courses c ON c.class_id = s.class_id WHERE c.id = course_id AND s.user_id = auth.uid())
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('teacher', 'admin'))
+    EXISTS (
+      SELECT 1 FROM public.students s
+      JOIN public.courses c ON c.class_id = s.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()::uuid
+    )
+    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher', 'admin'))
   );
 
-CREATE POLICY "Teachers can manage their live classes" ON public.live_classes FOR ALL USING (teacher_id = auth.uid());
-CREATE POLICY "Admins can manage all live classes"     ON public.live_classes FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Teachers can manage their live classes" ON public.live_classes FOR ALL USING (teacher_id = auth.uid()::uuid);
+CREATE POLICY "Admins can manage all live classes"     ON public.live_classes FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE INDEX idx_live_classes_course_id ON public.live_classes(course_id);
 
@@ -174,9 +181,11 @@ CREATE TABLE public.attendance (
 
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Students can view own attendance"   ON public.attendance FOR SELECT USING (EXISTS (SELECT 1 FROM public.students WHERE id = student_id AND user_id = auth.uid()));
-CREATE POLICY "Teachers can manage attendance"     ON public.attendance FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()));
-CREATE POLICY "System can record attendance"       ON public.attendance FOR INSERT WITH CHECK (true);
+CREATE POLICY "Students can view own attendance" ON public.attendance
+  FOR SELECT USING (EXISTS (SELECT 1 FROM public.students WHERE id = student_id AND user_id = auth.uid()::uuid));
+CREATE POLICY "Teachers can manage attendance"   ON public.attendance
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()::uuid));
+CREATE POLICY "System can record attendance"     ON public.attendance FOR INSERT WITH CHECK (true);
 
 CREATE INDEX idx_attendance_student_id    ON public.attendance(student_id);
 CREATE INDEX idx_attendance_live_class_id ON public.attendance(live_class_id);
@@ -200,10 +209,16 @@ CREATE TABLE public.assignments (
 ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Students can view assignments for their courses" ON public.assignments
-  FOR SELECT USING (EXISTS (SELECT 1 FROM public.students s JOIN public.courses c ON c.class_id = s.class_id WHERE c.id = course_id AND s.user_id = auth.uid()));
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.students s
+      JOIN public.courses c ON c.class_id = s.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()::uuid
+    )
+  );
 
-CREATE POLICY "Teachers can manage their assignments" ON public.assignments FOR ALL USING (teacher_id = auth.uid());
-CREATE POLICY "Admins can manage all assignments"     ON public.assignments FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+CREATE POLICY "Teachers can manage their assignments" ON public.assignments FOR ALL USING (teacher_id = auth.uid()::uuid);
+CREATE POLICY "Admins can manage all assignments"     ON public.assignments FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE TRIGGER assignments_updated_at BEFORE UPDATE ON public.assignments
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
@@ -231,16 +246,16 @@ CREATE TABLE public.submissions (
 ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Students can manage own submissions" ON public.submissions
-  FOR ALL USING (student_id = auth.uid());
+  FOR ALL USING (student_id = auth.uid()::uuid);
 
 CREATE POLICY "Teachers can view and grade submissions" ON public.submissions
-  FOR SELECT USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()));
+  FOR SELECT USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()::uuid));
 
 CREATE POLICY "Teachers can update (grade) submissions" ON public.submissions
-  FOR UPDATE USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()));
+  FOR UPDATE USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()::uuid));
 
 CREATE POLICY "Admins can manage all submissions" ON public.submissions
-  FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = 'admin'));
 
 CREATE INDEX idx_submissions_assignment_id ON public.submissions(assignment_id);
 CREATE INDEX idx_submissions_student_id    ON public.submissions(student_id);
@@ -259,9 +274,9 @@ CREATE TABLE public.messages (
 
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Users can view own messages" ON public.messages FOR SELECT USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
-CREATE POLICY "Users can send messages"     ON public.messages FOR INSERT WITH CHECK (auth.uid() = sender_id);
-CREATE POLICY "Users can delete own sent messages" ON public.messages FOR DELETE USING (auth.uid() = sender_id);
+CREATE POLICY "Users can view own messages"        ON public.messages FOR SELECT USING (auth.uid()::uuid = sender_id OR auth.uid()::uuid = receiver_id);
+CREATE POLICY "Users can send messages"            ON public.messages FOR INSERT WITH CHECK (auth.uid()::uuid = sender_id);
+CREATE POLICY "Users can delete own sent messages" ON public.messages FOR DELETE USING (auth.uid()::uuid = sender_id);
 
 CREATE INDEX idx_messages_sender_id   ON public.messages(sender_id);
 CREATE INDEX idx_messages_receiver_id ON public.messages(receiver_id);
@@ -288,22 +303,18 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view their notifications" ON public.notifications
   FOR SELECT USING (
-    user_id = auth.uid()
+    user_id = auth.uid()::uuid
     OR target_role = 'all'
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = target_role)
-    OR EXISTS (SELECT 1 FROM public.students WHERE user_id = auth.uid() AND class_id = notifications.class_id)
+    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = target_role)
+    OR EXISTS (SELECT 1 FROM public.students WHERE user_id = auth.uid()::uuid AND class_id = notifications.class_id)
   );
 
-CREATE POLICY "Users can mark own notifications read"          ON public.notifications FOR UPDATE USING (user_id = auth.uid());
-CREATE POLICY "Admins and teachers can create notifications"   ON public.notifications FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('admin', 'teacher')));
+CREATE POLICY "Users can mark own notifications read"          ON public.notifications FOR UPDATE USING (user_id = auth.uid()::uuid);
+CREATE POLICY "Admins and teachers can create notifications"   ON public.notifications FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('admin', 'teacher')));
 CREATE POLICY "System can create notifications (service role)" ON public.notifications FOR INSERT WITH CHECK (true);
 
 CREATE INDEX idx_notifications_user_id    ON public.notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
-
--- Enable Realtime for notifications and messages
-ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 
 -- ──────────────────────────────────────────────────────────────
 -- STORAGE BUCKETS & POLICIES
@@ -322,21 +333,31 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('materials', 'materials',
 ON CONFLICT (id) DO NOTHING;
 
 -- Avatar policies
-CREATE POLICY "Avatars are publicly readable"   ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
-CREATE POLICY "Users can upload own avatar"     ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
-CREATE POLICY "Users can update own avatar"     ON storage.objects FOR UPDATE USING  (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "Avatars are publicly readable" ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
+CREATE POLICY "Users can upload own avatar"   ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
+CREATE POLICY "Users can update own avatar"   ON storage.objects FOR UPDATE USING  (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
 
 -- Submission policies
-CREATE POLICY "Students can upload submissions" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'submissions' AND auth.uid() IS NOT NULL);
+CREATE POLICY "Students can upload submissions" ON storage.objects
+  FOR INSERT WITH CHECK (bucket_id = 'submissions' AND auth.uid() IS NOT NULL);
+
 CREATE POLICY "Students can view own submission files" ON storage.objects
-  FOR SELECT USING (bucket_id = 'submissions' AND (
-    auth.uid()::text = (storage.foldername(name))[2]
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('teacher', 'admin'))
-  ));
+  FOR SELECT USING (
+    bucket_id = 'submissions' AND (
+      auth.uid()::text = (storage.foldername(name))[2]
+      OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher', 'admin'))
+    )
+  );
 
 -- Material policies
-CREATE POLICY "Teachers can upload materials"       ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'materials' AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role IN ('teacher', 'admin')));
-CREATE POLICY "Authenticated users can view materials" ON storage.objects FOR SELECT USING (bucket_id = 'materials' AND auth.uid() IS NOT NULL);
+CREATE POLICY "Teachers can upload materials" ON storage.objects
+  FOR INSERT WITH CHECK (
+    bucket_id = 'materials'
+    AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher', 'admin'))
+  );
+
+CREATE POLICY "Authenticated users can view materials" ON storage.objects
+  FOR SELECT USING (bucket_id = 'materials' AND auth.uid() IS NOT NULL);
 
 -- ──────────────────────────────────────────────────────────────
 -- TRIGGER: Auto-create user profile on signup
@@ -361,6 +382,12 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- STEP 2 (run separately in SQL Editor if needed):
+-- Enable Realtime for messages and notifications
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Done ✅  Your database is ready for Latifia Quraner Alo E-Classroom
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

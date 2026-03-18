@@ -5,31 +5,37 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, BookOpen, Video, FileText,
   BarChart2, Settings, LogOut, ChevronRight,
-  GraduationCap, ClipboardList, Eye, BookMarked, Monitor, Bell, MessageCircle, UserPlus
+  ClipboardList, BookMarked, Monitor, Bell, MessageCircle, UserPlus,
+  Megaphone, CalendarDays, FolderOpen, PlayCircle
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 const adminNav = [
-  { label: 'Dashboard', href: '/admin/dashboard', icon: <LayoutDashboard size={18} /> },
-  { label: 'Users',     href: '/admin/users',     icon: <Users size={18} /> },
-  { label: 'Invites',   href: '/admin/invites',   icon: <UserPlus size={18} /> },
-  { label: 'Classes',   href: '/admin/classes',   icon: <BookOpen size={18} /> },
-  { label: 'Monitoring',href: '/admin/monitoring',icon: <Monitor size={18} /> },
-  { label: 'Reports',   href: '/admin/reports',   icon: <BarChart2 size={18} /> },
+  { label: 'Dashboard',      href: '/admin/dashboard',      icon: <LayoutDashboard size={18} /> },
+  { label: 'Users',          href: '/admin/users',          icon: <Users size={18} /> },
+  { label: 'Invites',        href: '/admin/invites',        icon: <UserPlus size={18} /> },
+  { label: 'Classes',        href: '/admin/classes',        icon: <BookOpen size={18} /> },
+  { label: 'Schedule',       href: '/admin/schedule',       icon: <CalendarDays size={18} /> },
+  { label: 'Announcements',  href: '/admin/announcements',  icon: <Megaphone size={18} /> },
+  { label: 'Monitoring',     href: '/admin/monitoring',     icon: <Monitor size={18} /> },
+  { label: 'Reports',        href: '/admin/reports',        icon: <BarChart2 size={18} /> },
 ]
 const teacherNav = [
   { label: 'Dashboard',   href: '/teacher/dashboard',   icon: <LayoutDashboard size={18} /> },
   { label: 'My Classes',  href: '/teacher/classes',     icon: <BookOpen size={18} /> },
   { label: 'Assignments', href: '/teacher/assignments', icon: <ClipboardList size={18} /> },
+  { label: 'Materials',   href: '/teacher/materials',   icon: <FolderOpen size={18} /> },
   { label: 'Live Class',  href: '/teacher/live-class',  icon: <Video size={18} /> },
   { label: 'Attendance',  href: '/teacher/attendance',  icon: <ClipboardList size={18} /> },
 ]
 const studentNav = [
   { label: 'Dashboard',   href: '/student/dashboard',   icon: <LayoutDashboard size={18} /> },
   { label: 'My Classes',  href: '/student/classes',     icon: <BookMarked size={18} /> },
+  { label: 'Schedule',    href: '/student/schedule',    icon: <CalendarDays size={18} /> },
   { label: 'Assignments', href: '/student/assignments', icon: <ClipboardList size={18} /> },
+  { label: 'Recordings',  href: '/student/recordings',  icon: <PlayCircle size={18} /> },
   { label: 'Submissions', href: '/student/submissions', icon: <FileText size={18} /> },
 ]
 

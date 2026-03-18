@@ -118,8 +118,9 @@ A **single-institution LMS (Web App / PWA)** with:
 ### 🎬 Recording
 
 * Start/stop recording
-* Auto upload to video platform
+* Auto upload to Youtube Private
 * Link saved in system
+* Student can watch recording after class if it was their own class
 
 ---
 

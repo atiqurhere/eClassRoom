@@ -473,6 +473,57 @@ CREATE INDEX idx_teacher_invites_user_id ON public.teacher_invites(user_id);
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
 -- ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- STEP 3 — New tables added in README update (run in SQL Editor)
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+-- ──────────────────────────────────────────────────────────────
+-- SCHEDULES (weekly timetable)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.schedules (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id    uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  course_id   uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  day         text NOT NULL CHECK (day IN ('Sun','Mon','Tue','Wed','Thu','Fri','Sat')),
+  start_time  time NOT NULL,
+  end_time    time NOT NULL,
+  created_at  timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can view schedules" ON public.schedules
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Admins can manage schedules" ON public.schedules
+  FOR ALL USING (public.get_my_role() = 'admin');
+
+CREATE INDEX IF NOT EXISTS idx_schedules_class_id ON public.schedules(class_id);
+
+-- ──────────────────────────────────────────────────────────────
+-- MATERIALS (teacher-uploaded PDFs, slides, docs)
+-- ──────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS public.materials (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id   uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  teacher_id  uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title       text NOT NULL,
+  file_url    text NOT NULL,
+  file_type   text DEFAULT 'file',
+  created_at  timestamptz DEFAULT now() NOT NULL
+);
+
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated can view materials" ON public.materials
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY "Teachers can manage own materials" ON public.materials
+  FOR ALL USING (teacher_id = auth.uid()::uuid);
+CREATE POLICY "Admins can manage all materials" ON public.materials
+  FOR ALL USING (public.get_my_role() = 'admin');
+
+CREATE INDEX IF NOT EXISTS idx_materials_course_id ON public.materials(course_id);
+
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -- Done ✅  Your database is ready for Latifia Quraner Alo E-Classroom
 -- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

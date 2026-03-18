@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { Video, Play, StopCircle, Link as LinkIcon } from 'lucide-react'
+import { Video, Play, StopCircle, Link as LinkIcon, Save } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { JitsiMeeting } from '@/components/live-class/JitsiMeeting'
@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Input'
 import { SectionCard } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/Badge'
-import { Loading } from '@/components/ui/Loading'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -23,6 +22,11 @@ export default function TeacherLiveClassPage() {
   const [pastClasses, setPastClasses] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [endedClass, setEndedClass] = useState<any>(null)
+  const [recordingUrl, setRecordingUrl] = useState('')
+  const [savingRec, setSavingRec] = useState(false)
+  const [savingRecId, setSavingRecId] = useState<string | null>(null)
+  const [inlineUrl, setInlineUrl] = useState<Record<string, string>>({})
 
   const fetchCourses = useCallback(async () => {
     if (!user) return
@@ -36,7 +40,7 @@ export default function TeacherLiveClassPage() {
     const supabase = createClient()
     const { data } = await supabase.from('live_classes').select('id, title, status, start_time, end_time, recording_url, courses(name)').eq('teacher_id', user.id).order('start_time', { ascending: false }).limit(8)
     setPastClasses(data || [])
-    const live = data?.find(c => c.status === 'live')
+    const live = data?.find((c: any) => c.status === 'live')
     if (live) setActiveClass(live)
   }, [user])
 
@@ -73,8 +77,10 @@ export default function TeacherLiveClassPage() {
         body: JSON.stringify({ liveClassId: activeClass.id }),
       })
       if (!res.ok) throw new Error('Failed to end class')
+      setEndedClass(activeClass)
       setActiveClass(null)
-      toast.success('Class ended')
+      setRecordingUrl('')
+      toast.success('Class ended! Add your recording link below.')
       fetchPastClasses()
     } catch (err: any) {
       toast.error(err.message)
@@ -83,12 +89,45 @@ export default function TeacherLiveClassPage() {
     }
   }
 
+  const saveRecording = async (liveClassId: string, url: string) => {
+    if (!url.trim()) { toast.error('Enter a YouTube URL'); return }
+    setSavingRec(true); setSavingRecId(liveClassId)
+    const res = await fetch('/api/live-class/recording', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ liveClassId, recording_url: url.trim() }),
+    })
+    const json = await res.json()
+    setSavingRec(false); setSavingRecId(null)
+    if (!res.ok) { toast.error(json.error || 'Invalid URL'); return }
+    toast.success('Recording link saved! Students can now watch it.')
+    setEndedClass(null)
+    setRecordingUrl('')
+    setInlineUrl(p => { const n = { ...p }; delete n[liveClassId]; return n })
+    fetchPastClasses()
+  }
+
   return (
     <div className="space-y-6">
       <div className="page-header">
         <h1>Live Class</h1>
         <p>Start and manage your video sessions</p>
       </div>
+
+      {/* Recording Link Prompt — shown after ending a class */}
+      {endedClass && (
+        <div style={{ padding: '18px 20px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 14 }}>
+          <p style={{ fontWeight: 700, color: '#f59e0b', marginBottom: 4 }}>🎬 Add Recording Link for &quot;{endedClass.title}&quot;</p>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 12 }}>Paste the YouTube Private link so students can watch after class.</p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <input value={recordingUrl} onChange={e => setRecordingUrl(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=..."
+              style={{ flex: 1, padding: '9px 12px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.875rem' }} />
+            <Button variant="gradient" leftIcon={<Save size={15} />} loading={savingRec} onClick={() => saveRecording(endedClass.id, recordingUrl)}>Save Link</Button>
+            <Button variant="ghost" onClick={() => setEndedClass(null)}>Skip</Button>
+          </div>
+        </div>
+      )}
 
       {activeClass ? (
         /* Active class view */
@@ -122,7 +161,7 @@ export default function TeacherLiveClassPage() {
                 <Select
                   label="Select Course"
                   placeholder="Choose a course..."
-                  options={courses.map(c => ({ value: c.id, label: `${c.name} (${c.classes?.class_name})` }))}
+                  options={courses.map(c => ({ value: c.id, label: `${c.name} (${(c.classes as any)?.class_name})` }))}
                   value={selectedCourse}
                   onChange={e => setSelectedCourse(e.target.value)}
                 />
@@ -147,13 +186,32 @@ export default function TeacherLiveClassPage() {
                     pastClasses.map(cls => (
                       <tr key={cls.id}>
                         <td className="font-medium" style={{ color: 'var(--text-primary)' }}>{cls.title}</td>
-                        <td style={{ fontSize: '0.8125rem' }}>{cls.courses?.name}</td>
+                        <td style={{ fontSize: '0.8125rem' }}>{(cls.courses as any)?.name}</td>
                         <td><StatusBadge status={cls.status} /></td>
                         <td className="text-xs">{cls.start_time ? new Date(cls.start_time).toLocaleDateString() : '—'}</td>
                         <td>
-                          {cls.recording_url
-                            ? <a href={cls.recording_url} target="_blank" rel="noreferrer"><Button variant="ghost" size="sm" leftIcon={<LinkIcon size={12} />}>Watch</Button></a>
-                            : <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>}
+                          {cls.recording_url ? (
+                            <a href={cls.recording_url} target="_blank" rel="noreferrer">
+                              <Button variant="ghost" size="sm" leftIcon={<LinkIcon size={12} />}>Watch</Button>
+                            </a>
+                          ) : cls.status === 'ended' ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <input
+                                value={inlineUrl[cls.id] || ''}
+                                onChange={e => setInlineUrl(p => ({ ...p, [cls.id]: e.target.value }))}
+                                placeholder="YouTube URL…"
+                                style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', width: 140 }}
+                              />
+                              <button
+                                onClick={() => saveRecording(cls.id, inlineUrl[cls.id] || '')}
+                                disabled={savingRec && savingRecId === cls.id}
+                                style={{ padding: '4px 10px', background: '#4f8ef7', color: '#fff', border: 'none', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>
+                                {savingRec && savingRecId === cls.id ? '…' : 'Save'}
+                              </button>
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>—</span>
+                          )}
                         </td>
                       </tr>
                     ))

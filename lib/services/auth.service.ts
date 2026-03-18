@@ -61,20 +61,20 @@ export const authService = {
   async getCurrentUser() {
     const supabase = createClient()
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
+    const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // Get user profile
-    const { data: profile } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', user.id)
-      .single()
+    // Fetch profile — use RPC for role to bypass recursive RLS, fallback to direct query
+    const [profileRes, rpcRes] = await Promise.all([
+      supabase.from('users').select('*').eq('id', user.id).single(),
+      supabase.rpc('get_my_role'),
+    ])
 
-    return profile as User | null
+    if (!profileRes.data) return null
+
+    // Prefer the RPC role (bypasses RLS issues), fallback to profile.role
+    const role = (!rpcRes.error && rpcRes.data) ? rpcRes.data : profileRes.data.role
+    return { ...profileRes.data, role } as User
   },
 
   // Get current session

@@ -9,10 +9,16 @@ export function useAuth() {
   const { user, loading, setUser, setLoading, clearAuth } = useAuthStore()
 
   useEffect(() => {
-    // Get initial session
-    authService.getCurrentUser().then((user) => {
-      setUser(user)
-    })
+    // Get initial session — always clear loading in finally
+    const init = async () => {
+      try {
+        const user = await authService.getCurrentUser()
+        setUser(user)
+      } catch {
+        clearAuth()
+      }
+    }
+    init()
 
     // Listen for auth changes
     const supabase = createClient()
@@ -20,8 +26,12 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const user = await authService.getCurrentUser()
-        setUser(user)
+        try {
+          const user = await authService.getCurrentUser()
+          setUser(user)
+        } catch {
+          clearAuth()
+        }
       } else {
         clearAuth()
       }

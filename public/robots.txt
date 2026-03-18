@@ -1,0 +1,17 @@
+User-agent: *
+# Allow public landing page
+Allow: /$
+Allow: /login
+Allow: /signup
+
+# Block all dashboard, API, and private routes
+Disallow: /admin/
+Disallow: /teacher/
+Disallow: /student/
+Disallow: /profile/
+Disallow: /messages/
+Disallow: /notifications/
+Disallow: /api/
+Disallow: /_next/
+
+Sitemap: https://your-domain.com/sitemap.xml

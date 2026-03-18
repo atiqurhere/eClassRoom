@@ -76,13 +76,19 @@ export async function middleware(request: NextRequest) {
 
   // Get role in the same request only when we have a user
   let role: string | null = null
+  let profileError = null
   if (user) {
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
       .single()
     role = profile?.role ?? null
+    profileError = error
+  }
+  
+  if (path === '/' || path === '/login') {
+    console.log(`[Middleware Check] Path: ${path} | HasUser: ${!!user} | UserID: ${user?.id} | Role: ${role} | Error:`, profileError)
   }
 
   // ── Redirect authenticated users away from auth pages ────────────────────
@@ -106,22 +112,25 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Role-based access control ────────────────────────────────────────────
-  if (user && role) {
+  if (user) {
+    const safeRole = role || 'student' // fallback if profile query failed
+    
+    // Redirect authenticated users from landing page
+    if (path === '/') {
+      return NextResponse.redirect(new URL(`/${safeRole}/dashboard`, request.url))
+    }
+
     // Admin-only routes
-    if (path.startsWith('/admin') && role !== 'admin') {
-      return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+    if (path.startsWith('/admin') && safeRole !== 'admin') {
+      return NextResponse.redirect(new URL(`/${safeRole}/dashboard`, request.url))
     }
     // Teacher-only routes
-    if (path.startsWith('/teacher') && role !== 'teacher') {
-      return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+    if (path.startsWith('/teacher') && safeRole !== 'teacher') {
+      return NextResponse.redirect(new URL(`/${safeRole}/dashboard`, request.url))
     }
     // Student-only routes
-    if (path.startsWith('/student') && role !== 'student') {
-      return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
-    }
-    // Redirect landing page for authenticated users to their dashboard
-    if (path === '/') {
-      return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+    if (path.startsWith('/student') && safeRole !== 'student') {
+      return NextResponse.redirect(new URL(`/${safeRole}/dashboard`, request.url))
     }
   }
 

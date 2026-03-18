@@ -49,7 +49,14 @@ export const authService = {
 
     if (error) throw error
 
-    return data
+    // Fetch user profile to get the role
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', data.user?.id)
+      .single()
+
+    return { ...data, profile }
   },
 
   // Sign out

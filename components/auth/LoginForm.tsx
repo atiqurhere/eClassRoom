@@ -27,7 +27,8 @@ export function LoginForm() {
       const result = await authService.signIn(data.email, data.password)
       if (result.user) {
         toast.success('Welcome back!')
-        window.location.href = '/'
+        const role = result.profile?.role || 'student'
+        window.location.href = `/${role}/dashboard`
       }
     } catch (error: any) {
       toast.error(error.message || 'Login failed. Please check your credentials.')
@@ -57,7 +58,8 @@ export function LoginForm() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Login failed')
       toast.success('Welcome back!')
-      window.location.href = '/'
+      const role = data.role || 'student'
+      window.location.href = `/${role}/dashboard`
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
     } finally {

@@ -80,7 +80,7 @@ export default async function StudentRecordingsPage() {
                   <RecordingPlayer embedUrl={embedUrl} />
                 ) : (
                   <a href={r.recording_url} target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'block', background: '#1a1a2e', aspectRatio: '16/9', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
+                    style={{ display: 'flex', background: '#1a1a2e', aspectRatio: '16/9', alignItems: 'center', justifyContent: 'center', textDecoration: 'none' }}>
                     <span style={{ fontSize: '2rem' }}>▶️</span>
                   </a>
                 )}

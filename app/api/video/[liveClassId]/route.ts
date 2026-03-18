@@ -6,14 +6,13 @@ import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { liveClassId: string } }
+  { params }: { params: Promise<{ liveClassId: string }> }
 ) {
   try {
+    const { liveClassId } = await params
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { liveClassId } = params
 
     // Verify this student's class has access to this session
     const { data: session } = await supabase

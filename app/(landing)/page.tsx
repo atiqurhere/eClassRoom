@@ -1,8 +1,5 @@
 import Link from 'next/link'
 import { BookOpen, Video, Users, Star, Award, Globe, ArrowRight, CheckCircle, MessageCircle } from 'lucide-react'
-import type { Viewport } from 'next'
-
-export const viewport: Viewport = { themeColor: '#16a34a' }
 
 export const metadata = {
   title: 'Latifia Quraner Alo — Online Quran Learning Platform',

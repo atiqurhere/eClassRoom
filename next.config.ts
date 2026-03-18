@@ -38,8 +38,8 @@ const securityHeaders = [
       "font-src 'self' fonts.gstatic.com",
       "img-src 'self' data: blob: *.supabase.co *.supabase.in",
       "media-src 'self' blob:",
-      "connect-src 'self' *.supabase.co *.supabase.in wss://*.supabase.co *.jitsi.net 8x8.vc",
-      "frame-src 'self' *.jitsi.net 8x8.vc",
+      "connect-src 'self' *.supabase.co *.supabase.in wss://*.supabase.co *.jitsi.net 8x8.vc *.youtube.com *.youtube-nocookie.com",
+      "frame-src 'self' *.jitsi.net 8x8.vc *.youtube.com *.youtube-nocookie.com",
     ].join('; '),
   },
 ]
@@ -74,6 +74,11 @@ const nextConfig: NextConfig = {
 
   // Suppress source maps in production for security
   productionBrowserSourceMaps: false,
+
+  // Required for correct manifest generation with route groups in Next.js 15
+  experimental: {
+    optimizePackageImports: ['lucide-react'],
+  },
 }
 
 export default nextConfig

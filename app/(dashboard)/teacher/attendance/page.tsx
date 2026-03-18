@@ -1,199 +1,154 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { Check, X, Clock, Download } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/lib/hooks/useAuth'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Input'
-import { SectionCard } from '@/components/ui/Card'
-import { StatusBadge } from '@/components/ui/Badge'
-import { AvatarWithName } from '@/components/ui/Avatar'
-import { Loading } from '@/components/ui/Loading'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 
 export default function TeacherAttendancePage() {
-  const { user } = useAuth()
-  const params = useSearchParams()
-  const [courses, setCourses] = useState<any[]>([])
   const [sessions, setSessions] = useState<any[]>([])
-  const [selectedCourse, setSelectedCourse] = useState(params.get('courseId') || '')
-  const [selectedSession, setSelectedSession] = useState('')
-  const [attendance, setAttendance] = useState<any[]>([])
-  const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState<string | null>(null)
-
-  const fetchCourses = useCallback(async () => {
-    if (!user) return
-    const supabase = createClient()
-    const { data } = await supabase.from('courses').select('id, name').eq('teacher_id', user.id)
-    setCourses(data || [])
-  }, [user])
+  const [selectedSession, setSelectedSession] = useState<string>('')
+  const [attendances, setAttendances] = useState<any[]>([])
+  const [loadingSessions, setLoadingSessions] = useState(true)
+  const [loadingAttendance, setLoadingAttendance] = useState(false)
+  const supabase = createClient()
 
   const fetchSessions = useCallback(async () => {
-    if (!selectedCourse) return
-    const supabase = createClient()
+    setLoadingSessions(true)
+    const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('live_classes')
-      .select('id, title, start_time, status')
-      .eq('course_id', selectedCourse)
+      .select('id, title, start_time, courses(name, class_id)')
+      .eq('teacher_id', user!.id)
+      .eq('status', 'ended')
       .order('start_time', { ascending: false })
+      .limit(20)
     setSessions(data || [])
-  }, [selectedCourse])
+    setLoadingSessions(false)
+  }, [])
 
-  const fetchAttendance = useCallback(async () => {
-    if (!selectedSession) return
-    setLoading(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('attendance')
-      .select('id, status, join_time, leave_time, duration_minutes, student_id, students(user_id, student_id, users(full_name, email))')
-      .eq('live_class_id', selectedSession)
-    setAttendance(data || [])
-    setLoading(false)
-  }, [selectedSession])
-
-  useEffect(() => { fetchCourses() }, [fetchCourses])
   useEffect(() => { fetchSessions() }, [fetchSessions])
-  useEffect(() => { fetchAttendance() }, [fetchAttendance])
 
-  const updateStatus = async (attendanceId: string, newStatus: string) => {
-    try {
-      setSaving(attendanceId)
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('attendance')
-        .update({ status: newStatus })
-        .eq('id', attendanceId)
-      if (error) throw error
-      toast.success(`Marked as ${newStatus}`)
-      setAttendance(prev => prev.map(a => a.id === attendanceId ? { ...a, status: newStatus } : a))
-    } catch (err: any) {
-      toast.error(err.message)
-    } finally {
-      setSaving(null)
+  const fetchAttendance = useCallback(async (sessionId: string) => {
+    setLoadingAttendance(true)
+    const session = sessions.find(s => s.id === sessionId)
+    const classId = (session?.courses as any)?.class_id
+    if (!classId) { setAttendances([]); setLoadingAttendance(false); return }
+
+    // Get all students in the class
+    const { data: students } = await supabase
+      .from('students')
+      .select('id, user_id, users(full_name)')
+      .eq('class_id', classId)
+
+    // Get attendance records for this session
+    const { data: records } = await supabase
+      .from('attendance')
+      .select('id, student_id, status, join_time, leave_time')
+      .eq('live_class_id', sessionId)
+
+    const recordMap: Record<string, any> = {}
+    ;(records || []).forEach((r: any) => { recordMap[r.student_id] = r })
+
+    const merged = (students || []).map((stu: any) => ({
+      student: stu,
+      attendance: recordMap[stu.id] || null,
+    }))
+    setAttendances(merged)
+    setLoadingAttendance(false)
+  }, [sessions])
+
+  useEffect(() => { if (selectedSession) fetchAttendance(selectedSession) }, [selectedSession, fetchAttendance])
+
+  const toggleStatus = async (studentId: string, currentStatus: string | null, liveClassId: string) => {
+    const newStatus = currentStatus === 'present' ? 'absent' : 'present'
+    const existing = attendances.find(a => a.student.id === studentId)?.attendance
+    if (existing) {
+      await supabase.from('attendance').update({ status: newStatus }).eq('id', existing.id)
+    } else {
+      await supabase.from('attendance').insert({ student_id: studentId, live_class_id: liveClassId, status: newStatus })
     }
+    toast.success(`Marked ${newStatus}`)
+    fetchAttendance(liveClassId)
   }
 
-  const presentCount = attendance.filter(a => a.status === 'present').length
-  const absentCount = attendance.filter(a => a.status === 'absent').length
-  const rate = attendance.length > 0 ? Math.round((presentCount / attendance.length) * 100) : 0
+  const card = 'var(--bg-card)'
+  const bdr  = '1px solid var(--border)'
 
   return (
-    <div className="space-y-6">
-      <div className="page-header">
-        <h1>Attendance Management</h1>
-        <p>View and adjust student attendance per session</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>✅ Attendance</h1>
+        <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Auto-recorded on join · Manual override below</p>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3">
-        <div style={{ minWidth: 220 }}>
-          <Select
-            label="Course"
-            placeholder="Select course..."
-            options={courses.map(c => ({ value: c.id, label: c.name }))}
-            value={selectedCourse}
-            onChange={e => { setSelectedCourse(e.target.value); setSelectedSession(''); setAttendance([]) }}
-          />
-        </div>
-        {sessions.length > 0 && (
-          <div style={{ minWidth: 260 }}>
-            <Select
-              label="Session"
-              placeholder="Select session..."
-              options={sessions.map(s => ({ value: s.id, label: `${s.title} — ${s.start_time ? new Date(s.start_time).toLocaleDateString() : 'Unknown'}` }))}
-              value={selectedSession}
-              onChange={e => setSelectedSession(e.target.value)}
-            />
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+        {/* Session list */}
+        <div style={{ background: card, border: bdr, borderRadius: 14, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 16px', borderBottom: bdr }}>
+            <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>Sessions</p>
           </div>
-        )}
-      </div>
-
-      {selectedSession && (
-        <>
-          {/* Summary cards */}
-          {attendance.length > 0 && (
-            <div className="grid grid-cols-3 gap-4">
-              {[
-                { label: 'Present', value: presentCount, color: 'var(--accent-green)' },
-                { label: 'Absent', value: absentCount, color: 'var(--accent-red)' },
-                { label: 'Rate', value: `${rate}%`, color: 'var(--accent-blue)' },
-              ].map(s => (
-                <div key={s.label} className="stat-card text-center">
-                  <p className="text-2xl font-bold" style={{ color: s.color }}>{s.value}</p>
-                  <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{s.label}</p>
-                </div>
-              ))}
-            </div>
+          {loadingSessions ? (
+            <p style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>Loading…</p>
+          ) : sessions.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>No ended sessions</p>
+          ) : (
+            sessions.map(s => (
+              <button key={s.id} onClick={() => setSelectedSession(s.id)}
+                style={{ width: '100%', textAlign: 'left', padding: '12px 16px', background: selectedSession === s.id ? 'rgba(79,142,247,0.08)' : 'transparent',
+                  boxShadow: selectedSession === s.id ? 'inset 3px 0 0 #4f8ef7' : 'none',
+                  borderBottom: bdr, border: 'none', cursor: 'pointer' }}>
+                <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{s.title}</p>
+                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                  {(s.courses as any)?.name} · {s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}
+                </p>
+              </button>
+            ))
           )}
+        </div>
 
-          <SectionCard
-            title={`Attendance — ${attendance.length} students`}
-            icon={<Clock size={15} style={{ color: 'var(--text-muted)' }} />}
-          >
-            {loading ? (
-              <Loading text="Loading attendance..." />
-            ) : attendance.length === 0 ? (
-              <div className="empty-state py-8">
-                <div className="empty-state-icon"><Clock size={28} /></div>
-                <h3>No attendance records</h3>
-                <p>Students who joined this session will appear here.</p>
+        {/* Attendance table */}
+        <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
+          {!selectedSession ? (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <p style={{ fontSize: '2rem', marginBottom: 8 }}>👈</p>
+              <p style={{ color: 'var(--text-muted)' }}>Select a session to view attendance</p>
+            </div>
+          ) : loadingAttendance ? (
+            <p style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>Loading…</p>
+          ) : attendances.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: 20, color: 'var(--text-muted)' }}>No students in this class</p>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 14 }}>
+                <p style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Students ({attendances.filter(a => a.attendance?.status === 'present').length}/{attendances.length} present)
+                </p>
               </div>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr><th>Student</th><th>Student ID</th><th>Join Time</th><th>Duration</th><th>Status</th><th>Actions</th></tr>
-                </thead>
-                <tbody>
-                  {attendance.map(a => {
-                    const stu = a.students as any
-                    const u = stu?.users as any
-                    return (
-                      <tr key={a.id}>
-                        <td><AvatarWithName name={u?.full_name} subtitle={u?.email} size="sm" /></td>
-                        <td className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>{stu?.student_id}</td>
-                        <td className="text-xs">{a.join_time ? new Date(a.join_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                        <td className="text-xs">{a.duration_minutes ? `${a.duration_minutes}min` : '—'}</td>
-                        <td><StatusBadge status={a.status} /></td>
-                        <td>
-                          <div className="flex gap-1.5">
-                            <button
-                              onClick={() => updateStatus(a.id, 'present')}
-                              disabled={saving === a.id || a.status === 'present'}
-                              className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
-                              style={{ color: 'var(--accent-green)', background: 'rgba(34,197,94,0.1)' }}
-                              title="Mark Present">
-                              <Check size={13} />
-                            </button>
-                            <button
-                              onClick={() => updateStatus(a.id, 'absent')}
-                              disabled={saving === a.id || a.status === 'absent'}
-                              className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
-                              style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}
-                              title="Mark Absent">
-                              <X size={13} />
-                            </button>
-                            <button
-                              onClick={() => updateStatus(a.id, 'late')}
-                              disabled={saving === a.id || a.status === 'late'}
-                              className="p-1.5 rounded-lg transition-colors disabled:opacity-40"
-                              style={{ color: 'var(--accent-orange)', background: 'rgba(245,158,11,0.1)' }}
-                              title="Mark Late">
-                              <Clock size={13} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-        </>
-      )}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {attendances.map(({ student, attendance }) => {
+                  const status = attendance?.status || null
+                  return (
+                    <div key={student.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-hover)', borderRadius: 10 }}>
+                      <div>
+                        <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{student.users?.full_name}</p>
+                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {attendance?.join_time ? `Joined ${new Date(attendance.join_time).toLocaleTimeString()}` : 'Not recorded'}
+                        </p>
+                      </div>
+                      <button onClick={() => toggleStatus(student.id, status, selectedSession)}
+                        style={{ padding: '5px 16px', borderRadius: 100, fontWeight: 700, fontSize: '0.75rem', cursor: 'pointer', border: 'none',
+                          background: status === 'present' ? '#22c55e' : '#ef4444',
+                          color: '#fff' }}>
+                        {status === 'present' ? '✓ Present' : status === 'absent' ? '✗ Absent' : '— Mark'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

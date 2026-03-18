@@ -9,7 +9,8 @@ import { Modal, ConfirmModal } from '@/components/ui/Modal'
 import { RoleBadge } from '@/components/ui/Badge'
 import { AvatarWithName } from '@/components/ui/Avatar'
 import { SectionCard } from '@/components/ui/Card'
-import { Skeleton, SkeletonRow } from '@/components/ui/Loading'
+import { SkeletonRow } from '@/components/ui/Loading'
+import { CsvImport } from '@/components/admin/CsvImport'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 
@@ -122,6 +123,8 @@ export default function AdminUsersPage() {
           Add User
         </Button>
       </div>
+
+      <CsvImport onDone={fetchUsers} />
 
       <SectionCard
         title={`All Users (${filtered.length})`}

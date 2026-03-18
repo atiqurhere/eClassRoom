@@ -17,6 +17,7 @@ const adminNav = [
   { label: 'Users',          href: '/admin/users',          icon: <Users size={18} /> },
   { label: 'Invites',        href: '/admin/invites',        icon: <UserPlus size={18} /> },
   { label: 'Classes',        href: '/admin/classes',        icon: <BookOpen size={18} /> },
+  { label: 'Assign Students',href: '/admin/assign-students',icon: <Users size={18} /> },
   { label: 'Schedule',       href: '/admin/schedule',       icon: <CalendarDays size={18} /> },
   { label: 'Announcements',  href: '/admin/announcements',  icon: <Megaphone size={18} /> },
   { label: 'Monitoring',     href: '/admin/monitoring',     icon: <Monitor size={18} /> },
@@ -29,6 +30,7 @@ const teacherNav = [
   { label: 'Materials',   href: '/teacher/materials',   icon: <FolderOpen size={18} /> },
   { label: 'Live Class',  href: '/teacher/live-class',  icon: <Video size={18} /> },
   { label: 'Attendance',  href: '/teacher/attendance',  icon: <ClipboardList size={18} /> },
+  { label: 'Reports',     href: '/teacher/reports',     icon: <BarChart2 size={18} /> },
 ]
 const studentNav = [
   { label: 'Dashboard',   href: '/student/dashboard',   icon: <LayoutDashboard size={18} /> },

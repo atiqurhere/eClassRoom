@@ -186,18 +186,16 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
             </div>
           ) : (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 560 }}>
+              <table className="data-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Student ID', 'Name', 'Class', 'Shift', 'Status', ''].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
-                    ))}
+                  <tr>
+                    <th>Student ID</th><th>Name</th><th>Class</th><th>Shift</th><th>Status</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {students.map(s => (
-                    <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '12px 16px' }}>
+                    <tr key={s.id}>
+                      <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <code style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-blue)' }}>{s.student_code}</code>
                           <button onClick={() => copyCode(s.student_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
@@ -205,13 +203,11 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                           </button>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.full_name}</td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
-                        {classes.find(c => c.id === s.class_id)?.class_name ?? '—'}
-                      </td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.shift ?? '—'}</td>
-                      <td style={{ padding: '12px 16px' }}><span style={badge(!!s.user_id)}>{s.user_id ? 'Claimed' : 'Pending'}</span></td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.full_name}</td>
+                      <td>{classes.find(c => c.id === s.class_id)?.class_name ?? '—'}</td>
+                      <td style={{ textTransform: 'capitalize' }}>{s.shift ?? '—'}</td>
+                      <td><span style={badge(!!s.user_id)}>{s.user_id ? 'Claimed' : 'Pending'}</span></td>
+                      <td>
                         {!s.user_id && (
                           <button onClick={() => handleDelete('student_invites', s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
                             <Trash2 size={15} />
@@ -238,18 +234,16 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
             </div>
           ) : (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 480 }}>
+              <table className="data-table">
                 <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Teacher ID', 'Name', 'Status', 'Claimed At', ''].map(h => (
-                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
-                    ))}
+                  <tr>
+                    <th>Teacher ID</th><th>Name</th><th>Status</th><th>Claimed At</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {teachers.map(t => (
-                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                      <td style={{ padding: '12px 16px' }}>
+                    <tr key={t.id}>
+                      <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <code style={{ fontFamily: 'monospace', fontWeight: 700, color: '#22c55e' }}>{t.teacher_code}</code>
                           <button onClick={() => copyCode(t.teacher_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
@@ -257,12 +251,10 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                           </button>
                         </div>
                       </td>
-                      <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text-primary)' }}>{t.full_name}</td>
-                      <td style={{ padding: '12px 16px' }}><span style={badge(!!t.user_id)}>{t.user_id ? 'Claimed' : 'Pending'}</span></td>
-                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
-                        {t.claimed_at ? new Date(t.claimed_at).toLocaleDateString() : '—'}
-                      </td>
-                      <td style={{ padding: '12px 16px' }}>
+                      <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{t.full_name}</td>
+                      <td><span style={badge(!!t.user_id)}>{t.user_id ? 'Claimed' : 'Pending'}</span></td>
+                      <td>{t.claimed_at ? new Date(t.claimed_at).toLocaleDateString() : '—'}</td>
+                      <td>
                         {!t.user_id && (
                           <button onClick={() => handleDelete('teacher_invites', t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
                             <Trash2 size={15} />

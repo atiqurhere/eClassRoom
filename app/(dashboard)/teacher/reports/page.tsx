@@ -93,19 +93,17 @@ export default async function TeacherReportsPage() {
         {/* Session History */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>🎥 Recent Sessions</p>
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: 380 }}>
-              <thead><tr style={{ borderBottom: bdr }}>{['Title', 'Course', 'Date', 'Status'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700 }}>{h}</th>
-              ))}</tr></thead>
+          <div className="overflow-x-auto">
+            <table className="data-table">
+              <thead><tr><th>Title</th><th>Course</th><th>Date</th><th>Status</th></tr></thead>
               <tbody>{(sessions || []).length === 0
                 ? <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>No sessions yet</td></tr>
                 : ((sessions || []) as any[]).map((s: any) => (
-                  <tr key={s.id} style={{ borderBottom: bdr }}>
-                    <td style={{ padding: '8px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.title}</td>
-                    <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{courseMap[s.course_id]?.name}</td>
-                    <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
-                    <td style={{ padding: '8px' }}>
+                  <tr key={s.id}>
+                    <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.title}</td>
+                    <td>{courseMap[s.course_id]?.name}</td>
+                    <td>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
+                    <td>
                       <span style={{
                         padding: '2px 8px', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700,
                         background: s.status === 'live' ? '#22c55e20' : '#4f8ef718',
@@ -117,7 +115,8 @@ export default async function TeacherReportsPage() {
                   </tr>
                 ))
               }</tbody>
-            </table></div>
+            </table>
+          </div>
         </div>
 
         {/* Assignment Stats */}

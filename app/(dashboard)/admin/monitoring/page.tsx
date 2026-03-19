@@ -4,6 +4,8 @@ export const revalidate = 0
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { SectionCard } from '@/components/ui/Card'
+import { StatusBadge } from '@/components/ui/Badge'
 
 export default async function AdminMonitoringPage() {
   const supabase = await createClient()
@@ -35,10 +37,10 @@ export default async function AdminMonitoringPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>👁️ Class Monitoring</h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Live sessions and recent recordings</p>
+    <div className="space-y-5">
+      <div className="page-header">
+        <h1>👁️ Class Monitoring</h1>
+        <p>Live sessions and recent recordings</p>
       </div>
 
       {/* Live Now */}
@@ -50,12 +52,12 @@ export default async function AdminMonitoringPage() {
         {live.length === 0 ? (
           <p style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)' }}>No active classes right now</p>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
             {live.map(cls => (
               <div key={cls.id} style={{ padding: '16px', background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                   <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>{cls.title}</p>
-                  <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#22c55e20', color: '#22c55e', borderRadius: 100, fontWeight: 700 }}>LIVE {duration(cls.start_time)}</span>
+                  <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#22c55e20', color: '#22c55e', borderRadius: 100, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>LIVE {duration(cls.start_time)}</span>
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 4 }}>
                   👩‍🏫 {cls.users?.full_name} · {cls.courses?.classes?.class_name}
@@ -74,15 +76,16 @@ export default async function AdminMonitoringPage() {
       </div>
 
       {/* Recent Ended */}
-      <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
-        <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>🕐 Recent Sessions</p>
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 640 }}>
+      <SectionCard title="🕐 Recent Sessions" scrollable>
+        <table className="data-table">
           <thead>
-            <tr style={{ borderBottom: bdr }}>
-              {['Session', 'Teacher', 'Course', 'Date', 'Duration', 'Recording'].map(h => (
-                <th key={h} style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600, fontSize: '0.75rem', textTransform: 'uppercase' }}>{h}</th>
-              ))}
+            <tr>
+              <th>Session</th>
+              <th>Teacher</th>
+              <th>Course</th>
+              <th>Date</th>
+              <th>Duration</th>
+              <th>Recording</th>
             </tr>
           </thead>
           <tbody>
@@ -94,16 +97,16 @@ export default async function AdminMonitoringPage() {
                   ? Math.floor((new Date(cls.end_time).getTime() - new Date(cls.start_time).getTime()) / 60000)
                   : null
                 return (
-                  <tr key={cls.id} style={{ borderBottom: bdr }}>
-                    <td style={{ padding: '10px', color: 'var(--text-primary)', fontWeight: 600 }}>{cls.title}</td>
-                    <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{cls.users?.full_name}</td>
-                    <td style={{ padding: '10px', color: 'var(--text-secondary)' }}>{cls.courses?.name}</td>
-                    <td style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{cls.start_time ? new Date(cls.start_time).toLocaleDateString() : '—'}</td>
-                    <td style={{ padding: '10px', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{mins != null ? `${mins}m` : '—'}</td>
-                    <td style={{ padding: '10px' }}>
+                  <tr key={cls.id}>
+                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cls.title}</td>
+                    <td>{cls.users?.full_name}</td>
+                    <td>{cls.courses?.name}</td>
+                    <td>{cls.start_time ? new Date(cls.start_time).toLocaleDateString() : '—'}</td>
+                    <td>{mins != null ? `${mins}m` : '—'}</td>
+                    <td>
                       {cls.recording_url
-                        ? <a href={cls.recording_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4f8ef7', fontWeight: 600, fontSize: '0.8125rem' }}>▶ Watch</a>
-                        : <span style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>—</span>
+                        ? <a href={cls.recording_url} target="_blank" rel="noopener noreferrer" style={{ color: '#4f8ef7', fontWeight: 600 }}>▶ Watch</a>
+                        : <span style={{ color: 'var(--text-muted)' }}>—</span>
                       }
                     </td>
                   </tr>
@@ -111,8 +114,8 @@ export default async function AdminMonitoringPage() {
               })
             )}
           </tbody>
-        </table></div>
-      </div>
+        </table>
+      </SectionCard>
     </div>
   )
 }

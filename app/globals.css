@@ -886,22 +886,6 @@ tr:hover td {
     border-radius: 12px;
     overflow: visible;
   }
-  /* ── Mobile: all tables inside cards scroll horizontally ── */
-  /* This is the nuclear global fix — no per-page overflow wrappers needed */
-  @media (max-width: 767px) {
-    .section-card,
-    .section-card > div {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-    }
-    /* Ensure tables inside section-cards have a min-width to trigger scroll */
-    .section-card table,
-    .section-card .data-table {
-      min-width: 420px;
-      width: max-content;
-      max-width: 100%;
-    }
-  }
   .section-card-header {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);

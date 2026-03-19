@@ -179,6 +179,7 @@ CREATE TABLE public.materials (
   class_id    uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
   teacher_id  uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
   title       text NOT NULL,
+  description text,                                        -- optional notes / clickable links
   file_url    text NOT NULL,
   file_type   text DEFAULT 'file',
   created_at  timestamptz DEFAULT now() NOT NULL

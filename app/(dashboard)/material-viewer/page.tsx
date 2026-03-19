@@ -101,7 +101,7 @@ export default function MaterialViewerPage() {
           <a href={fileUrl} target="_blank" rel="noopener noreferrer">
             <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />}>Open in Tab</Button>
           </a>
-          <a href={fileUrl} download target="_blank" rel="noopener noreferrer">
+          <a href={`/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(title + '.' + ext)}`}>
             <Button variant="gradient" size="sm" leftIcon={<Download size={13} />}>Download</Button>
           </a>
         </div>

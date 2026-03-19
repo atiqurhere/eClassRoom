@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { BookOpen, FileText, Video, ChevronRight, Clock } from 'lucide-react'
+import { BookOpen, FileText, ChevronRight, Clock } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Button } from '@/components/ui/Button'
@@ -13,8 +13,11 @@ import { formatDistanceToNow } from 'date-fns'
 
 export default function StudentClassesPage() {
   const { user } = useAuth()
+  // In v2: a "course" is the top-level item; each course has many classes.
+  // The student is enrolled into a COURSE via course_enrollments.
+  // We show courses in the sidebar, then the selected course's classes + materials + assignments.
   const [courses, setCourses] = useState<any[]>([])
-  const [selected, setSelected] = useState<any>(null)
+  const [selected, setSelected] = useState<any>(null)   // selected course
   const [materials, setMaterials] = useState<any[]>([])
   const [assignments, setAssignments] = useState<any[]>([])
   const [submissions, setSubmissions] = useState<any[]>([])
@@ -25,11 +28,16 @@ export default function StudentClassesPage() {
     if (!user) return
     setLoading(true)
     const supabase = createClient()
-    const { data: studentRecord } = await supabase.from('students').select('class_id').eq('user_id', user.id).single()
-    if (!studentRecord?.class_id) { setLoading(false); return }
-    const { data } = await supabase.from('courses').select('id, name, description, teacher_id, users!courses_teacher_id_fkey(full_name)').eq('class_id', studentRecord.class_id)
-    setCourses(data || [])
-    if (data?.length) setSelected(data[0])
+    // v2: get enrolled courses
+    const { data: enrollments } = await supabase
+      .from('course_enrollments')
+      .select('course_id, courses(id, name, description, classes(id, class_name, section, teacher_id, users!classes_teacher_id_fkey(full_name)))')
+      .eq('student_id', user.id)
+      .order('enrolled_at', { ascending: false })
+
+    const fetched = (enrollments || []).map((e: any) => e.courses).filter(Boolean)
+    setCourses(fetched)
+    if (fetched.length) setSelected(fetched[0])
     setLoading(false)
   }, [user])
 
@@ -37,11 +45,17 @@ export default function StudentClassesPage() {
     if (!selected || !user) return
     setDetailLoading(true)
     const supabase = createClient()
-    const { data: studentRecord } = await supabase.from('students').select('id').eq('user_id', user.id).single()
+    // Get classIds for the selected course
+    const classIds = (selected.classes || []).map((c: any) => c.id)
+
     const [matRes, asgRes, subRes] = await Promise.all([
-      supabase.from('materials').select('*').eq('course_id', selected.id).order('created_at', { ascending: false }),
-      supabase.from('assignments').select('id, title, description, due_date, max_score').eq('course_id', selected.id).order('due_date', { ascending: true }),
-      studentRecord ? supabase.from('submissions').select('id, status, grade, assignment_id').eq('student_id', studentRecord.id) : Promise.resolve({ data: [] }),
+      classIds.length
+        ? supabase.from('materials').select('*').in('class_id', classIds).order('created_at', { ascending: false })
+        : Promise.resolve({ data: [] }),
+      classIds.length
+        ? supabase.from('assignments').select('id, title, description, due_date, max_score, class_id, classes(class_name)').in('class_id', classIds).order('due_date', { ascending: true })
+        : Promise.resolve({ data: [] }),
+      supabase.from('submissions').select('id, status, score, assignment_id').eq('student_id', user.id),
     ])
     setMaterials(matRes.data || [])
     setAssignments(asgRes.data || [])
@@ -66,7 +80,7 @@ export default function StudentClassesPage() {
         {/* Course list */}
         <SectionCard title="Courses" icon={<BookOpen size={15} style={{ color: 'var(--accent-blue)' }} />} className="xl:col-span-1" bodyClassName="p-2">
           {courses.length === 0 ? (
-            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>Not enrolled yet</p>
+            <p className="text-sm text-center py-4" style={{ color: 'var(--text-muted)' }}>Not enrolled in any course yet</p>
           ) : (
             <div className="space-y-1">
               {courses.map(c => (
@@ -77,7 +91,7 @@ export default function StudentClassesPage() {
                     color: selected?.id === c.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
                   }}>
                   <p className="text-sm font-semibold">{c.name}</p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{(c.users as any)?.full_name}</p>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{(c.classes || []).length} class{(c.classes || []).length !== 1 ? 'es' : ''}</p>
                 </button>
               ))}
             </div>
@@ -93,6 +107,23 @@ export default function StudentClassesPage() {
             </div>
           ) : detailLoading ? <Loading /> : (
             <>
+              {/* Classes in this course */}
+              {(selected.classes || []).length > 0 && (
+                <SectionCard title="Classes" icon={<BookOpen size={15} style={{ color: 'var(--accent-blue)' }} />}>
+                  <div className="space-y-2">
+                    {(selected.classes as any[]).map((cls: any) => (
+                      <div key={cls.id} className="flex items-center justify-between p-3 rounded-lg"
+                        style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{cls.class_name}{cls.section ? ` (${cls.section})` : ''}</p>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>Teacher: {cls.users?.full_name || 'Unassigned'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </SectionCard>
+              )}
+
               {/* Materials */}
               <SectionCard title="Materials" icon={<FileText size={15} style={{ color: 'var(--accent-purple)' }} />}>
                 {materials.length === 0 ? (
@@ -110,7 +141,7 @@ export default function StudentClassesPage() {
                           <div>
                             <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.title}</p>
                             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                              {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
+                              {(m.classes as any)?.class_name} · {formatDistanceToNow(new Date(m.created_at), { addSuffix: true })}
                             </p>
                           </div>
                         </div>
@@ -135,8 +166,8 @@ export default function StudentClassesPage() {
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1">
                               <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{a.title}</p>
-                              {a.description && <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>{a.description}</p>}
-                              <p className={`text-xs mt-1.5 flex items-center gap-1 ${isOverdue ? 'text-red-400' : ''}`} style={{ color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)' }}>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{(a.classes as any)?.class_name}</p>
+                              <p className={`text-xs mt-1.5 flex items-center gap-1`} style={{ color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)' }}>
                                 <Clock size={10} />
                                 Due {formatDistanceToNow(new Date(a.due_date), { addSuffix: true })}
                                 {a.max_score && <span className="ml-2">· {a.max_score} pts</span>}
@@ -144,13 +175,8 @@ export default function StudentClassesPage() {
                             </div>
                             <div className="flex flex-col items-end gap-2">
                               <StatusBadge status={sub ? (sub.status === 'graded' ? 'graded' : 'submitted') : isOverdue ? 'late' : 'scheduled'} />
-                              {sub?.grade != null && (
-                                <span className="text-xs font-bold" style={{ color: 'var(--accent-green)' }}>
-                                  {sub.grade}/{a.max_score}
-                                </span>
-                              )}
                               {!sub && (
-                                <Link href={`/student/submissions?assignmentId=${a.id}&courseId=${selected.id}`}>
+                                <Link href={`/student/submissions?assignmentId=${a.id}`}>
                                   <Button variant="primary" size="sm">Submit</Button>
                                 </Link>
                               )}

@@ -32,16 +32,14 @@ export default function StudentSubmissionsPage() {
     if (!user) return
     setLoading(true)
     const supabase = createClient()
-    const { data: stu } = await supabase.from('students').select('id').eq('user_id', user.id).single()
-    if (stu) {
-      setStudentId(stu.id)
-      const { data } = await supabase
-        .from('submissions')
-        .select('id, status, grade, feedback, submitted_at, file_url, content, assignment_id, assignments(title, due_date, max_score, courses(name))')
-        .eq('student_id', stu.id)
-        .order('submitted_at', { ascending: false })
-      setSubmissions(data || [])
-    }
+    // v2: student_id IS user.id — no students table
+    setStudentId(user.id)
+    const { data } = await supabase
+      .from('submissions')
+      .select('id, status, score, feedback, submitted_at, file_url, content, assignment_id, assignments(title, due_date, max_score, classes(class_name, courses(name)))')
+      .eq('student_id', user.id)
+      .order('submitted_at', { ascending: false })
+    setSubmissions(data || [])
 
     // Load preselected assignment
     if (preselectedAssignment) {
@@ -67,7 +65,7 @@ export default function StudentSubmissionsPage() {
       const isLate = new Date(selectedAssignment.due_date) < now
       const { error } = await supabase.from('submissions').insert({
         assignment_id: selectedAssignment.id,
-        student_id: studentId,
+        student_id: user.id,   // v2: student_id is the user's own ID
         content: content || null,
         file_url: fileUrl,
         status: isLate ? 'late' : 'submitted',
@@ -111,7 +109,9 @@ export default function StudentSubmissionsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
                       <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{asg?.title}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{asg?.courses?.name}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                        {(asg?.classes as any)?.class_name} · {(asg?.classes as any)?.courses?.name}
+                      </p>
                       <p className="text-xs mt-1.5 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
                         <Clock size={10} />
                         Submitted {formatDistanceToNow(new Date(s.submitted_at), { addSuffix: true })}
@@ -126,7 +126,7 @@ export default function StudentSubmissionsPage() {
                       <StatusBadge status={s.status} />
                       {s.grade != null ? (
                         <div className="text-right">
-                          <p className="text-lg font-bold" style={{ color: 'var(--accent-green)' }}>{s.grade}/{asg?.max_score}</p>
+                          <p className="text-lg font-bold" style={{ color: 'var(--accent-green)' }}>{s.score}/{asg?.max_score}</p>
                           <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
                             {Math.round((s.grade / (asg?.max_score || 100)) * 100)}%
                           </p>

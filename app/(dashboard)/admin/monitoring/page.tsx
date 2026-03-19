@@ -15,12 +15,12 @@ export default async function AdminMonitoringPage() {
   const [liveRes, recentRes] = await Promise.all([
     supabase
       .from('live_classes')
-      .select('id, title, room_id, start_time, teacher_id, course_id, courses(name, class_id, classes(class_name)), users!live_classes_teacher_id_fkey(full_name)')
+      .select('id, title, room_id, start_time, class_id, teacher_id, classes(class_name, courses(name)), users!live_classes_teacher_id_fkey(full_name)')
       .eq('status', 'live')
       .order('start_time'),
     supabase
       .from('live_classes')
-      .select('id, title, start_time, end_time, recording_url, status, courses(name), users!live_classes_teacher_id_fkey(full_name)')
+      .select('id, title, start_time, end_time, recording_url, status, class_id, classes(class_name, courses(name)), users!live_classes_teacher_id_fkey(full_name)')
       .eq('status', 'ended')
       .order('start_time', { ascending: false })
       .limit(10),
@@ -60,10 +60,10 @@ export default async function AdminMonitoringPage() {
                   <span style={{ fontSize: '0.7rem', padding: '2px 8px', background: '#22c55e20', color: '#22c55e', borderRadius: 100, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>LIVE {duration(cls.start_time)}</span>
                 </div>
                 <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                  👩‍🏫 {cls.users?.full_name} · {cls.courses?.classes?.class_name}
+                  👩‍🏫 {cls.users?.full_name} · {(cls.classes as any)?.class_name}
                 </p>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 12 }}>
-                  Course: {cls.courses?.name}
+                  Course: {(cls.classes as any)?.courses?.name}
                 </p>
                 <Link href={`/admin/monitoring/join/${cls.id}?room=${cls.room_id}`}
                   style={{ display: 'inline-block', padding: '6px 16px', background: '#4f8ef718', color: '#4f8ef7', border: '1px solid #4f8ef730', borderRadius: 8, fontWeight: 700, fontSize: '0.8125rem', textDecoration: 'none' }}>
@@ -100,7 +100,7 @@ export default async function AdminMonitoringPage() {
                   <tr key={cls.id}>
                     <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{cls.title}</td>
                     <td>{cls.users?.full_name}</td>
-                    <td>{cls.courses?.name}</td>
+                    <td>{(cls.classes as any)?.class_name} &mdash; {(cls.classes as any)?.courses?.name}</td>
                     <td>{cls.start_time ? new Date(cls.start_time).toLocaleDateString() : '—'}</td>
                     <td>{mins != null ? `${mins}m` : '—'}</td>
                     <td>

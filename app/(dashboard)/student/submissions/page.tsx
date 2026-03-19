@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { FileText, Upload, Clock, CheckCircle } from 'lucide-react'
+import { FileText, Upload, Clock, CheckCircle, Send } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/lib/hooks/useAuth'
 import { Button } from '@/components/ui/Button'
 import { Textarea } from '@/components/ui/Input'
 import { SectionCard } from '@/components/ui/Card'
-import { StatusBadge } from '@/components/ui/Badge'
-import { Loading } from '@/components/ui/Loading'
+import { SkeletonRow } from '@/components/ui/Loading'
 import { Modal } from '@/components/ui/Modal'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
@@ -20,7 +19,6 @@ export default function StudentSubmissionsPage() {
   const params = useSearchParams()
   const preselectedAssignment = params.get('assignmentId')
   const [submissions, setSubmissions] = useState<any[]>([])
-  const [studentId, setStudentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(!!preselectedAssignment)
   const [selectedAssignment, setSelectedAssignment] = useState<any>(null)
@@ -32,8 +30,6 @@ export default function StudentSubmissionsPage() {
     if (!user) return
     setLoading(true)
     const supabase = createClient()
-    // v2: student_id IS user.id — no students table
-    setStudentId(user.id)
     const { data } = await supabase
       .from('submissions')
       .select('id, status, score, feedback, submitted_at, file_url, content, assignment_id, assignments(title, due_date, max_score, classes(class_name, courses(name)))')
@@ -41,7 +37,6 @@ export default function StudentSubmissionsPage() {
       .order('submitted_at', { ascending: false })
     setSubmissions(data || [])
 
-    // Load preselected assignment
     if (preselectedAssignment) {
       const { data: asg } = await supabase.from('assignments').select('id, title, description, due_date, max_score').eq('id', preselectedAssignment).single()
       if (asg) setSelectedAssignment(asg)
@@ -52,20 +47,18 @@ export default function StudentSubmissionsPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   const handleSubmit = async () => {
-    if (!selectedAssignment || !studentId || !user) return
+    if (!selectedAssignment || !user) return
     if (!content && !file) { toast.error('Please add content or upload a file'); return }
     try {
       setSubmitting(true)
       let fileUrl = null
-      if (file) {
-        fileUrl = await storageService.uploadSubmissionFile(user.id, selectedAssignment.id, file)
-      }
+      if (file) fileUrl = await storageService.uploadSubmissionFile(user.id, selectedAssignment.id, file)
       const supabase = createClient()
       const now = new Date()
       const isLate = new Date(selectedAssignment.due_date) < now
       const { error } = await supabase.from('submissions').insert({
         assignment_id: selectedAssignment.id,
-        student_id: user.id,   // v2: student_id is the user's own ID
+        student_id: user.id,
         content: content || null,
         file_url: fileUrl,
         status: isLate ? 'late' : 'submitted',
@@ -84,7 +77,8 @@ export default function StudentSubmissionsPage() {
     }
   }
 
-  if (loading) return <Loading text="Loading submissions..." />
+  const gradedCount   = submissions.filter(s => s.status === 'graded').length
+  const pendingCount  = submissions.filter(s => s.status === 'submitted').length
 
   return (
     <div className="space-y-6">
@@ -93,90 +87,96 @@ export default function StudentSubmissionsPage() {
         <p>Track your submitted assignments and grades</p>
       </div>
 
-      {submissions.length === 0 ? (
-        <div className="empty-state glass-card p-16">
-          <div className="empty-state-icon"><FileText size={28} /></div>
-          <h3>No submissions yet</h3>
-          <p>Go to My Classes to submit your first assignment</p>
-        </div>
-      ) : (
-        <SectionCard title={`Submissions (${submissions.length})`}>
-          <div className="space-y-3">
-            {submissions.map(s => {
-              const asg = s.assignments as any
-              return (
-                <div key={s.id} className="p-4 rounded-xl" style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{asg?.title}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        {(asg?.classes as any)?.class_name} · {(asg?.classes as any)?.courses?.name}
-                      </p>
-                      <p className="text-xs mt-1.5 flex items-center gap-1" style={{ color: 'var(--text-muted)' }}>
-                        <Clock size={10} />
-                        Submitted {formatDistanceToNow(new Date(s.submitted_at), { addSuffix: true })}
-                      </p>
-                      {s.feedback && (
-                        <div className="mt-2 p-2.5 rounded-lg text-xs" style={{ background: 'rgba(79,142,247,0.1)', color: 'var(--text-secondary)', border: '1px solid rgba(79,142,247,0.2)' }}>
-                          <strong>Feedback:</strong> {s.feedback}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex flex-col items-end gap-2">
-                      <StatusBadge status={s.status} />
-                      {s.grade != null ? (
-                        <div className="text-right">
-                          <p className="text-lg font-bold" style={{ color: 'var(--accent-green)' }}>{s.score}/{asg?.max_score}</p>
-                          <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                            {Math.round((s.grade / (asg?.max_score || 100)) * 100)}%
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Awaiting grade</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )
-            })}
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }}>
+        {[
+          { label: 'Total',   value: submissions.length, color: 'var(--accent-blue)',   bg: 'rgba(79,142,247,0.1)',  icon: <Send size={16} /> },
+          { label: 'Graded',  value: gradedCount,        color: 'var(--accent-green)',  bg: 'rgba(34,197,94,0.1)',  icon: <CheckCircle size={16} /> },
+          { label: 'Pending', value: pendingCount,       color: 'var(--accent-orange)', bg: 'rgba(245,158,11,0.1)', icon: <Clock size={16} /> },
+        ].map(s => (
+          <div key={s.label} className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: s.bg, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
+            <div>
+              <p style={{ fontSize: '1.625rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{s.value}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 3 }}>{s.label}</p>
+            </div>
           </div>
-        </SectionCard>
-      )}
+        ))}
+      </div>
 
-      {/* Submit modal */}
+      <SectionCard title={`Submissions (${submissions.length})`} icon={<FileText size={15} style={{ color: 'var(--accent-blue)' }} />} scrollable>
+        {loading ? (
+          <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
+        ) : submissions.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+            <FileText size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+            <p>No submissions yet. Go to <b>My Classes</b> to submit your first assignment.</p>
+          </div>
+        ) : (
+          <table className="data-table">
+            <thead>
+              <tr><th>Assignment</th><th>Class</th><th>Submitted</th><th>Score</th><th style={{textAlign:'right'}}>Status</th></tr>
+            </thead>
+            <tbody>
+              {submissions.map(s => {
+                const asg = s.assignments as any
+                return (
+                  <tr key={s.id}>
+                    <td>
+                      <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{asg?.title}</p>
+                      {s.feedback && (
+                        <div style={{ marginTop: 6, padding: '6px 10px', borderRadius: 6, fontSize: '0.75rem', background: 'rgba(79,142,247,0.08)', color: 'var(--text-secondary)', border: '1px solid rgba(79,142,247,0.15)' }}>
+                          <b>Feedback:</b> {s.feedback}
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                      {(asg?.classes as any)?.class_name}
+                      {(asg?.classes as any)?.courses?.name && <span style={{ display: 'block', fontSize: '0.75rem' }}>{(asg.classes as any).courses.name}</span>}
+                    </td>
+                    <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={11} /> {formatDistanceToNow(new Date(s.submitted_at), { addSuffix: true })}
+                      </div>
+                    </td>
+                    <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {s.score != null ? `${s.score} / ${asg?.max_score}` : '—'}
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <span style={{
+                        padding: '4px 10px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
+                        background: s.status === 'graded' ? 'rgba(34,197,94,0.12)' : s.status === 'late' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
+                        color: s.status === 'graded' ? 'var(--accent-green)' : s.status === 'late' ? 'var(--accent-red)' : 'var(--accent-orange)',
+                      }}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </SectionCard>
+
+      {/* Submit modal (pre-opened if coming from assignments page) */}
       <Modal isOpen={showModal && !!selectedAssignment} onClose={() => setShowModal(false)}
         title={`Submit: ${selectedAssignment?.title}`} size="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button variant="gradient" loading={submitting} leftIcon={<Upload size={15} />} onClick={handleSubmit}>Submit</Button>
-          </>
-        }>
+        footer={<><Button variant="secondary" onClick={() => setShowModal(false)}>Cancel</Button><Button variant="gradient" loading={submitting} leftIcon={<Upload size={15} />} onClick={handleSubmit}>Submit</Button></>}>
         {selectedAssignment && (
           <div className="space-y-4">
-            <div className="p-3 rounded-lg text-xs" style={{ background: 'var(--bg-hover)' }}>
-              <p style={{ color: 'var(--text-muted)' }}>Due: <strong style={{ color: new Date(selectedAssignment.due_date) < new Date() ? 'var(--accent-red)' : 'var(--text-primary)' }}>
-                {new Date(selectedAssignment.due_date).toLocaleString()}
-              </strong></p>
-              {selectedAssignment.description && <p className="mt-1" style={{ color: 'var(--text-secondary)' }}>{selectedAssignment.description}</p>}
+            <div style={{ padding: '12px', borderRadius: 10, background: 'var(--bg-hover)' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                Due: <strong style={{ color: new Date(selectedAssignment.due_date) < new Date() ? 'var(--accent-red)' : 'var(--text-primary)' }}>
+                  {new Date(selectedAssignment.due_date).toLocaleString()}
+                </strong>
+              </p>
+              {selectedAssignment.description && <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 6 }}>{selectedAssignment.description}</p>}
             </div>
-            <Textarea
-              label="Your Answer / Notes"
-              placeholder="Write your response here..."
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              rows={5}
-            />
+            <Textarea label="Your Answer / Notes" placeholder="Write your response here..." value={content} onChange={e => setContent(e.target.value)} rows={5} />
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
-                Attach File (PDF, DOCX — max 10MB)
-              </label>
-              <input
-                type="file"
-                accept=".pdf,.doc,.docx,.txt,.png,.jpg"
-                onChange={e => setFile(e.target.files?.[0] || null)}
-                className="form-input text-sm"
-              />
+              <label className="form-label">Attach File (PDF, DOCX — max 10MB)</label>
+              <input type="file" accept=".pdf,.doc,.docx,.txt,.png,.jpg" onChange={e => setFile(e.target.files?.[0] || null)} className="form-input text-sm" />
             </div>
           </div>
         )}

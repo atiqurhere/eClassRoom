@@ -5,14 +5,15 @@ import { createClient }        from '@/lib/supabase/server'
 import { redirect }            from 'next/navigation'
 import { formatDistanceToNow } from 'date-fns'
 import Link                    from 'next/link'
-import { StudentSubmitForm }   from './StudentSubmitForm'
+import { FileText, Clock, CheckCircle, AlertTriangle, XCircle } from 'lucide-react'
+import { SectionCard }         from '@/components/ui/Card'
+import { Button }              from '@/components/ui/Button'
 
 export default async function StudentAssignmentsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // v2: get student's enrolled courses → class IDs
   const { data: enrollments } = await supabase
     .from('course_enrollments')
     .select('course_id, courses(id, name, classes(id))')
@@ -24,12 +25,12 @@ export default async function StudentAssignmentsPage() {
 
   if (!enrollments || enrollments.length === 0) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>My Assignments</h1>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: 40, textAlign: 'center' }}>
-          <p style={{ fontSize: '2rem', marginBottom: 8 }}>🎒</p>
+      <div className="space-y-6">
+        <div className="page-header"><h1>My Assignments</h1></div>
+        <div style={{ textAlign: 'center', padding: 48, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14 }}>
+          <FileText size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
           <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Not enrolled in any course yet</p>
-          <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>Contact your admin to get enrolled.</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Contact your admin to get enrolled.</p>
         </div>
       </div>
     )
@@ -55,82 +56,93 @@ export default async function StudentAssignmentsPage() {
   const pending = assignments.filter(a => !submMap.has(a.id) && new Date(a.due_date) >= now)
   const overdue = assignments.filter(a => !submMap.has(a.id) && new Date(a.due_date) < now)
   const done    = assignments.filter(a => submMap.has(a.id))
-  const card    = 'var(--bg-card)'
-  const bdr     = '1px solid var(--border)'
+
+  const topStats = [
+    { label: 'Total',    value: assignments.length, color: 'var(--accent-blue)',   bg: 'rgba(79,142,247,0.1)',   icon: <FileText size={16} /> },
+    { label: 'Pending',  value: pending.length,     color: 'var(--accent-blue)',   bg: 'rgba(79,142,247,0.1)',   icon: <Clock size={16} /> },
+    { label: 'Overdue',  value: overdue.length,     color: 'var(--accent-red)',    bg: 'rgba(239,68,68,0.1)',   icon: <AlertTriangle size={16} /> },
+    { label: 'Submitted',value: done.length,        color: 'var(--accent-green)',  bg: 'rgba(34,197,94,0.1)',   icon: <CheckCircle size={16} /> },
+  ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>My Assignments</h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>
-          {assignments.length} total · {pending.length} pending · {overdue.length} overdue · {done.length} done
-        </p>
+    <div className="space-y-6">
+      <div className="page-header">
+        <h1>My Assignments</h1>
+        <p>{assignments.length} total · {pending.length} pending · {overdue.length} overdue · {done.length} submitted</p>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+        {topStats.map(s => (
+          <div key={s.label} className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: s.bg, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
+            <div>
+              <p style={{ fontSize: '1.375rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{s.value}</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 3 }}>{s.label}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
       {assignments.length === 0 ? (
-        <div style={{ background: card, border: bdr, borderRadius: 14, padding: 40, textAlign: 'center' }}>
-          <p style={{ fontSize: '2rem', marginBottom: 8 }}>📝</p>
+        <div style={{ textAlign: 'center', padding: 48, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14 }}>
+          <FileText size={36} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
           <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>No assignments yet</p>
-          <p style={{ color: 'var(--text-muted)', marginTop: 4 }}>Check back later.</p>
+          <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Check back later.</p>
         </div>
       ) : (
-        ['Overdue', 'Pending', 'Submitted'].map(section => {
-          const list = section === 'Overdue' ? overdue : section === 'Pending' ? pending : done
-          if (!list.length) return null
-          const sectionColor = section === 'Overdue' ? '#ef4444' : section === 'Pending' ? '#4f8ef7' : '#22c55e'
-          return (
-            <div key={section} style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
-              <p style={{ fontWeight: 700, color: sectionColor, marginBottom: 14 }}>
-                {section === 'Overdue' ? '⚠️' : section === 'Pending' ? '⏳' : '✅'} {section} ({list.length})
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {list.map((a: any) => {
-                  const sub = submMap.get(a.id)
-                  return (
-                    <div key={a.id} style={{ padding: '14px 16px', background: 'var(--bg-hover)', borderRadius: 10 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-                        <div style={{ flex: 1 }}>
-                          <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.title}</p>
-                          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 3 }}>
-                            {(a.classes as any)?.class_name} · {(a.classes as any)?.courses?.name}
-                          </p>
-                          {a.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>{a.description}</p>}
-                          <p style={{ fontSize: '0.75rem', marginTop: 6, color: section === 'Overdue' ? '#ef4444' : 'var(--text-muted)' }}>
-                            Due {formatDistanceToNow(new Date(a.due_date), { addSuffix: true })} · Max {a.max_score} pts
-                          </p>
-                        </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                          {sub ? (
-                            <>
-                              <span style={{ padding: '3px 10px', background: '#22c55e18', color: '#22c55e', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700 }}>
+        <>
+          {[
+            { key: 'Overdue',   list: overdue, color: 'var(--accent-red)',   icon: <AlertTriangle size={14} /> },
+            { key: 'Pending',   list: pending, color: 'var(--accent-blue)',  icon: <Clock size={14} /> },
+            { key: 'Submitted', list: done,    color: 'var(--accent-green)', icon: <CheckCircle size={14} /> },
+          ].map(({ key, list, color, icon }) => {
+            if (!list.length) return null
+            return (
+              <SectionCard key={key} title={`${key} (${list.length})`} icon={<span style={{ color }}>{icon}</span>} scrollable>
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Assignment</th><th>Class</th><th>Due</th><th>Score</th><th style={{textAlign:'right'}}>Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {list.map((a: any) => {
+                      const sub = submMap.get(a.id)
+                      return (
+                        <tr key={a.id}>
+                          <td>
+                            <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.title}</p>
+                            {a.description && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{a.description}</p>}
+                          </td>
+                          <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                            {(a.classes as any)?.class_name}
+                            {(a.classes as any)?.courses?.name && <span style={{ display: 'block', fontSize: '0.75rem' }}>{(a.classes as any).courses.name}</span>}
+                          </td>
+                          <td style={{ fontSize: '0.8125rem', color: key === 'Overdue' ? 'var(--accent-red)' : 'var(--text-muted)', fontWeight: key === 'Overdue' ? 600 : 400 }}>
+                            {formatDistanceToNow(new Date(a.due_date), { addSuffix: true })}
+                          </td>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {sub?.score != null ? `${sub.score}/${a.max_score}` : `—/${a.max_score}`}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            {sub ? (
+                              <span style={{ padding: '4px 10px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, background: sub.status === 'graded' ? 'rgba(34,197,94,0.12)' : 'rgba(79,142,247,0.12)', color: sub.status === 'graded' ? 'var(--accent-green)' : 'var(--accent-blue)' }}>
                                 {sub.status === 'graded' ? 'Graded' : 'Submitted'}
                               </span>
-                              {sub.score != null && (
-                                <p style={{ fontSize: '0.875rem', fontWeight: 700, color: '#22c55e' }}>{sub.score}/{a.max_score}</p>
-                              )}
-                            </>
-                          ) : (
-                            <Link href={`/student/submissions?assignmentId=${a.id}`}>
-                              <button style={{ padding: '6px 14px', background: 'linear-gradient(135deg,#4f8ef7,#8b5cf6)', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 600, fontSize: '0.8125rem', cursor: 'pointer' }}>
-                                Submit
-                              </button>
-                            </Link>
-                          )}
-                          {a.file_url && (
-                            <a href={a.file_url} target="_blank" rel="noopener noreferrer"
-                              style={{ fontSize: '0.75rem', color: '#4f8ef7', textDecoration: 'underline' }}>
-                              View File
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )
-        })
+                            ) : (
+                              <Link href={`/student/submissions?assignmentId=${a.id}`}>
+                                <Button variant="gradient" size="sm">Submit</Button>
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </SectionCard>
+            )
+          })}
+        </>
       )}
     </div>
   )

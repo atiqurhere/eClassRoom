@@ -43,27 +43,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: authErr.message }, { status: 400 })
     }
 
-    // Insert into public.users
-    const { error: profileErr } = await adminClient.from('users').insert({
+    // Upsert into public.users — use upsert in case a trigger already created the row
+    // (some Supabase setups auto-create the profile row via handle_new_user trigger)
+    const upsertPayload: Record<string, any> = {
       id: newAuth.user.id,
       email: email.trim(),
       full_name: full_name.trim(),
       role,
-    })
-    if (profileErr) {
-      console.error('Profile insert error:', profileErr)
-      // Try to clean up the auth user if profile insert fails
-      await adminClient.auth.admin.deleteUser(newAuth.user.id).catch(() => {})
-      return NextResponse.json({ error: profileErr.message }, { status: 400 })
+    }
+    if (role === 'student' && student_id) {
+      upsertPayload.student_id = student_id.trim()
     }
 
-    // If student, create student record
-    if (role === 'student' && student_id) {
-      const { error: stuErr } = await adminClient.from('students').insert({
-        user_id: newAuth.user.id,
-        student_id,
-      })
-      if (stuErr) console.error('Student record error:', stuErr)
+    const { error: profileErr } = await adminClient
+      .from('users')
+      .upsert(upsertPayload, { onConflict: 'id' })
+
+    if (profileErr) {
+      console.error('Profile upsert error:', profileErr)
+      // Clean up the auth user if profile creation fails
+      await adminClient.auth.admin.deleteUser(newAuth.user.id).catch(() => {})
+      return NextResponse.json({ error: `Database error: ${profileErr.message}` }, { status: 400 })
     }
 
     return NextResponse.json({ user: newAuth.user })

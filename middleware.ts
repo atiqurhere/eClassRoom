@@ -16,7 +16,8 @@ function isRateLimited(ip: string): boolean {
 }
 
 const RATE_LIMITED_PATHS = ['/api/auth/', '/signup']
-const GUEST_ONLY_PATHS   = ['/', '/login', '/signup', '/forgot-password', '/reset-password']
+// Auth pages that logged-in users should never see (landing page '/' is public — shows different content)
+const GUEST_ONLY_PATHS   = ['/login', '/signup', '/forgot-password', '/reset-password']
 const PROTECTED_PREFIXES = ['/admin', '/teacher', '/student', '/profile', '/messages', '/notifications']
 
 export async function middleware(request: NextRequest) {
@@ -98,11 +99,18 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  // ── RULE 3: Role-based access control ───────────────────────────────────
+  // ── RULE 3: Role-based access control (admin can view all sections) ─────────────────────
   if (isAuthenticated && role) {
-    if (path.startsWith('/admin')   && role !== 'admin')   return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
-    if (path.startsWith('/teacher') && role !== 'teacher') return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
-    if (path.startsWith('/student') && role !== 'student') return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+    // Only admins can access /admin
+    if (path.startsWith('/admin') && role !== 'admin')
+      return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+    // Teachers can only access /teacher (not /student or /admin)
+    if (path.startsWith('/teacher') && role === 'student')
+      return NextResponse.redirect(new URL(`/student/dashboard`, request.url))
+    // Students can only access /student (not /teacher or /admin)
+    if (path.startsWith('/student') && role === 'teacher')
+      return NextResponse.redirect(new URL(`/teacher/dashboard`, request.url))
+    // Admin can freely visit /teacher and /student paths for monitoring
   }
 
   return response

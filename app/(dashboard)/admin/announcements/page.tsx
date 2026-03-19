@@ -65,7 +65,7 @@ export default function AdminAnnouncementsPage() {
         <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Send announcements to all users or specific classes</p>
       </div>
 
-      <div className="dash-grid-main">
+      <div className="dash-grid-sidebar">
         {/* Compose */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>✍️ New Announcement</p>

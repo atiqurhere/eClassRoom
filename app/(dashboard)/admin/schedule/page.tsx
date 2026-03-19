@@ -69,7 +69,7 @@ export default function AdminSchedulePage() {
         <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Manage class timetables</p>
       </div>
 
-      <div className="dash-grid-main">
+      <div className="dash-grid-sidebar">
         {/* Add Slot */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 18 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>➕ Add Time Slot</p>

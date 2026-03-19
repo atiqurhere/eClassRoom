@@ -12,23 +12,24 @@ import { RoleBadge } from '@/components/ui/Badge'
 import { toast } from 'sonner'
 
 export default function ProfilePage() {
-  const { user } = useAuth()
-  const [profile, setProfile]   = useState<any>(null)
-  const [dataLoading, setDataLoading] = useState(true)
-  const [fullName, setFullName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [pwdLoading, setPwdLoading] = useState(false)
-  const [newPwd, setNewPwd] = useState('')
-  const [confirmPwd, setConfirmPwd] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState('')
+  const { user, loading: authLoading } = useAuth()
+  const [profile, setProfile]         = useState<any>(null)
+  const [dataLoading, setDataLoading] = useState(false)
+  const [fullName, setFullName]       = useState('')
+  const [saving, setSaving]           = useState(false)
+  const [pwdLoading, setPwdLoading]   = useState(false)
+  const [newPwd, setNewPwd]           = useState('')
+  const [confirmPwd, setConfirmPwd]   = useState('')
+  const [avatarUrl, setAvatarUrl]     = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
-  const [accountId, setAccountId] = useState<string | null>(null)
-  const [idCopied, setIdCopied] = useState(false)
+  const [accountId, setAccountId]     = useState<string | null>(null)
+  const [idCopied, setIdCopied]       = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Fetch full fresh profile from DB — don’t rely on useAuth initial state which can be null
+  // Wait for auth to resolve, then fetch fresh profile from DB
   useEffect(() => {
-    if (!user?.id) return
+    if (authLoading) return   // auth still initialising — will re-run once resolved
+    if (!user?.id) return     // not logged in
     const supabase = createClient()
     const load = async () => {
       setDataLoading(true)
@@ -45,14 +46,13 @@ export default function ProfilePage() {
       setDataLoading(false)
     }
     load()
-  }, [user?.id])
+  }, [authLoading, user?.id])
 
-  // Fetch the user's invite code from DB (student_code or teacher_code)
+  // Fetch account ID after profile loads
   useEffect(() => {
     if (!user?.id || !profile?.role) return
     const supabase = createClient()
     const fetchId = async () => {
-      // In v2 student_id lives directly on users table
       if (profile.role === 'student' && profile.student_id) {
         setAccountId(profile.student_id)
       } else if (profile.role === 'teacher') {
@@ -101,6 +101,7 @@ export default function ProfilePage() {
       const supabase = createClient()
       const { error } = await supabase.from('users').update({ full_name: fullName }).eq('id', user?.id)
       if (error) throw error
+      setProfile((p: any) => ({ ...p, full_name: fullName }))
       toast.success('Profile updated')
     } catch (err: any) {
       toast.error(err.message || 'Failed to update profile')
@@ -129,9 +130,17 @@ export default function ProfilePage() {
     }
   }
 
-  if (dataLoading || !profile) return (
+  // Auth still resolving OR DB fetch in progress
+  if (authLoading || dataLoading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text-muted)' }}>
-      Loading profile…
+      Loading profile...
+    </div>
+  )
+
+  // Auth done but profile not found
+  if (!profile) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text-muted)' }}>
+      Could not load profile. Please refresh.
     </div>
   )
 
@@ -169,12 +178,11 @@ export default function ProfilePage() {
         </div>
       </SectionCard>
 
-      {/* Account ID — show for students and teachers */}
       {(profile.role === 'student' || profile.role === 'teacher') && (
         <SectionCard title="Account ID" icon={<Hash size={16} style={{ color: 'var(--accent-green)' }} />}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              This is your unique ID issued by the admin. You can use it to sign in or share it with your admin.
+              This is your unique ID issued by the admin. Share it with your admin if needed.
             </p>
             {accountId ? (
               <div style={{
@@ -217,7 +225,7 @@ export default function ProfilePage() {
                 }} />
               </div>
               <p className="text-xs mt-1" style={{ color: newPwd.length < 8 ? 'var(--accent-red)' : newPwd.length < 12 ? 'var(--accent-orange)' : 'var(--accent-green)' }}>
-                {newPwd.length < 8 ? 'Too short' : newPwd.length < 12 ? 'Fair — add more characters' : '✓ Strong password'}
+                {newPwd.length < 8 ? 'Too short' : newPwd.length < 12 ? 'Fair - add more characters' : 'Strong password'}
               </p>
             </div>
           )}

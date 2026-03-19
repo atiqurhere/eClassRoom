@@ -176,8 +176,8 @@ export default function TeacherLiveClassPage() {
           </div>
 
           <div className="xl:col-span-2">
-            <SectionCard title="Past Sessions" icon={<Video size={15} style={{ color: 'var(--text-muted)' }} />}>
-              <table className="data-table">
+            <SectionCard title="Past Sessions" icon={<Video size={15} style={{ color: 'var(--text-muted)' }} />} scrollable>
+              <table className="data-table" style={{ minWidth: 480 }}>
                 <thead><tr><th>Session</th><th>Course</th><th>Status</th><th>Date</th><th>Recording</th></tr></thead>
                 <tbody>
                   {pastClasses.length === 0 ? (

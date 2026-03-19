@@ -96,7 +96,7 @@ export default function TeacherAssignmentsPage() {
     if (authLoading || !user) { setLoading(false); return } // Guard against auth loading or no user
     const { data } = await supabase
       .from('submissions')
-      .select('id, status, score, feedback, submitted_at, file_url, student_id, users!submissions_student_id_fkey(full_name)')
+      .select('id, status, score, feedback, submitted_at, file_url, content, student_id, users!submissions_student_id_fkey(full_name)')
       .eq('assignment_id', assignment.id)
       .order('submitted_at', { ascending: false })
     setSubmissions((data || []) as any[])
@@ -200,7 +200,7 @@ export default function TeacherAssignmentsPage() {
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                         {sub.file_url && (
-                          <a href={sub.file_url} target="_blank" rel="noreferrer">
+                          <a href={`/material-viewer?url=${encodeURIComponent(sub.file_url)}&title=${encodeURIComponent((sub.users?.full_name || 'Student') + ' Submission')}`} target="_blank" rel="noreferrer">
                             <Button variant="secondary" size="sm">View File</Button>
                           </a>
                         )}
@@ -220,10 +220,23 @@ export default function TeacherAssignmentsPage() {
         <Modal isOpen={!!gradeModal} onClose={() => setGradeModal(null)} title="Grade Submission"
                footer={<><Button variant="secondary" onClick={() => setGradeModal(null)}>Cancel</Button><Button variant="primary" loading={saving} onClick={submitGrade}>Save Grade</Button></>}>
           <div className="space-y-4">
-            <div>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 4 }}>Student</p>
-              <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{gradeModal?.users?.full_name}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 4 }}>Student</p>
+                <p style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{gradeModal?.users?.full_name}</p>
+              </div>
+              {gradeModal?.file_url && (
+                <a href={`/material-viewer?url=${encodeURIComponent(gradeModal.file_url)}&title=${encodeURIComponent((gradeModal.users?.full_name || 'Student') + ' Submission')}`} target="_blank" rel="noreferrer">
+                  <Button variant="secondary" size="sm" leftIcon={<FileText size={14} />}>Attachment</Button>
+                </a>
+              )}
             </div>
+            {gradeModal?.content && (
+              <div style={{ padding: '12px', background: 'var(--bg-hover)', borderRadius: 8 }}>
+                <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 4 }}>Submission Text</p>
+                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{gradeModal.content}</p>
+              </div>
+            )}
             <Input label={`Score (out of ${selected.max_score})`} type="number" 
                    value={gradeForm.score} onChange={e => setGradeForm(p => ({ ...p, score: e.target.value }))} />
             <Textarea label="Feedback Comments" rows={3} 

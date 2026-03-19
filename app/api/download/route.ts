@@ -48,11 +48,15 @@ export async function GET(request: NextRequest) {
       headers['apikey'] = serviceKey
     }
 
-    const upstream = await fetch(fileUrl, { headers })
+    // Convert public URLs to authenticated URLs so our Service Key can bypass RLS on private buckets (e.g., submissions)
+    // The Supabase public endpoint ignores auth headers and rejects private paths with 404/400.
+    const fetchUrl = fileUrl.replace('/object/public/', '/object/authenticated/')
+    
+    const upstream = await fetch(fetchUrl, { headers })
 
     if (!upstream.ok) {
       return NextResponse.json(
-        { error: `Upstream error: ${upstream.status} ${upstream.statusText}` },
+        { error: `Upstream error: ${upstream.status} ${upstream.statusText}. URL: ${fetchUrl}` },
         { status: upstream.status }
       )
     }

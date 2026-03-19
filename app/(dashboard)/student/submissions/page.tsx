@@ -144,13 +144,20 @@ export default function StudentSubmissionsPage() {
                       {s.score != null ? `${s.score} / ${asg?.max_score}` : '—'}
                     </td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{
-                        padding: '4px 10px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
-                        background: s.status === 'graded' ? 'rgba(34,197,94,0.12)' : s.status === 'late' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
-                        color: s.status === 'graded' ? 'var(--accent-green)' : s.status === 'late' ? 'var(--accent-red)' : 'var(--accent-orange)',
-                      }}>
-                        {s.status}
-                      </span>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+                        {s.file_url && (
+                          <a href={`/material-viewer?url=${encodeURIComponent(s.file_url)}&title=${encodeURIComponent(asg?.title + ' (My Submission)')}`} target="_blank" rel="noreferrer">
+                            <Button variant="ghost" size="sm" style={{ padding: '0 8px', height: 26, fontSize: '0.75rem', background: 'rgba(79,142,247,0.08)', color: 'var(--accent-blue)' }}>View File</Button>
+                          </a>
+                        )}
+                        <span style={{
+                          padding: '4px 10px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, textTransform: 'capitalize',
+                          background: s.status === 'graded' ? 'rgba(34,197,94,0.12)' : s.status === 'late' ? 'rgba(239,68,68,0.12)' : 'rgba(245,158,11,0.12)',
+                          color: s.status === 'graded' ? 'var(--accent-green)' : s.status === 'late' ? 'var(--accent-red)' : 'var(--accent-orange)',
+                        }}>
+                          {s.status}
+                        </span>
+                      </div>
                     </td>
                   </tr>
                 )

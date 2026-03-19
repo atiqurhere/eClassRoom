@@ -16,6 +16,9 @@ export default function TeacherAttendancePage() {
   const [attendances, setAttendances]         = useState<any[]>([])
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [loadingAttendance, setLoadingAttendance]= useState(false)
+  const [mounted, setMounted]                 = useState(false)
+
+  useEffect(() => setMounted(true), [])
 
   // Fetch this teacher's ended live sessions (with class + course info)
   const fetchSessions = useCallback(async () => {

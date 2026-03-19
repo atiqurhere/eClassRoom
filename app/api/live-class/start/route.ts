@@ -4,67 +4,57 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-
-    // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check user role (only teachers can start classes)
-    const { data: profile } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
+    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
     if (!profile || profile.role !== 'teacher') {
       return NextResponse.json({ error: 'Only teachers can start live classes' }, { status: 403 })
     }
 
     const body = await request.json()
-    const { courseId, title } = body
+    // Support both classId (new) and courseId (legacy fallback)
+    const { classId, courseId, title } = body
 
-    if (!courseId || !title) {
-      return NextResponse.json({ error: 'Course ID and title are required' }, { status: 400 })
+    if (!classId && !courseId) {
+      return NextResponse.json({ error: 'classId or courseId and title are required' }, { status: 400 })
+    }
+    if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
+
+    // If classId provided, verify teacher is assigned to that class
+    if (classId) {
+      const { data: cls } = await supabase.from('classes').select('id, teacher_id').eq('id', classId).single()
+      if (!cls) return NextResponse.json({ error: 'Class not found' }, { status: 404 })
+      if (cls.teacher_id !== user.id) return NextResponse.json({ error: 'You are not assigned to this class' }, { status: 403 })
     }
 
-    // Generate unique room ID
-    const roomId = `class_${courseId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const roomId = `class_${(classId || courseId)}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Create live class record
     const { data: liveClass, error: createError } = await supabase
       .from('live_classes')
       .insert({
-        course_id: courseId,
+        class_id:   classId  || null,
         teacher_id: user.id,
-        room_id: roomId,
+        room_id:    roomId,
         title,
         start_time: new Date().toISOString(),
-        status: 'live',
+        status:     'live',
       })
       .select()
       .single()
 
-    if (createError) {
-      return NextResponse.json({ error: createError.message }, { status: 500 })
-    }
+    if (createError) return NextResponse.json({ error: createError.message }, { status: 500 })
 
-    // Create notification for students
-    const { error: notificationError } = await supabase
-      .from('notifications')
-      .insert({
-        title: 'Live Class Started',
-        message: `${title} has started. Join now!`,
-        type: 'class_start',
-        sender_id: user.id,
+    // Notify students enrolled in the course that owns this class
+    if (classId) {
+      await supabase.from('notifications').insert({
+        title:       'Live Class Started',
+        message:     `${title} has started — join now!`,
+        type:        'class_start',
+        sender_id:   user.id,
         target_role: 'student',
-        link: `/student/live-class/${liveClass.id}`,
+        link:        `/student/live-class/${liveClass.id}`,
       })
-
-    if (notificationError) {
-      console.error('Failed to create notification:', notificationError)
     }
 
     return NextResponse.json({ liveClass })

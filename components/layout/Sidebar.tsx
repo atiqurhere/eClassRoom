@@ -9,6 +9,7 @@ import {
   ChevronRight, ClipboardList, BookMarked,
   Monitor, Bell, MessageCircle, UserPlus,
   Megaphone, CalendarDays, FolderOpen, PlayCircle, X,
+  GraduationCap, ShieldAlert, Layers,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -17,11 +18,13 @@ const adminNav = [
   { label: 'Dashboard',       href: '/admin/dashboard',       icon: <LayoutDashboard size={18} /> },
   { label: 'Users',           href: '/admin/users',           icon: <Users size={18} /> },
   { label: 'Invites',         href: '/admin/invites',         icon: <UserPlus size={18} /> },
-  { label: 'Classes',         href: '/admin/classes',         icon: <BookOpen size={18} /> },
+  { label: 'Courses',         href: '/admin/courses',         icon: <GraduationCap size={18} /> },
+  { label: 'Classes',         href: '/admin/classes',         icon: <Layers size={18} /> },
   { label: 'Assign Students', href: '/admin/assign-students', icon: <Users size={18} /> },
   { label: 'Schedule',        href: '/admin/schedule',        icon: <CalendarDays size={18} /> },
   { label: 'Announcements',   href: '/admin/announcements',   icon: <Megaphone size={18} /> },
   { label: 'Monitoring',      href: '/admin/monitoring',      icon: <Monitor size={18} /> },
+  { label: 'Chat Monitor',    href: '/admin/chat-monitor',    icon: <ShieldAlert size={18} /> },
   { label: 'Reports',         href: '/admin/reports',         icon: <BarChart2 size={18} /> },
 ]
 const teacherNav = [

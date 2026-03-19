@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('messages')
-      .select('*, sender:users!messages_sender_id_fkey(id, full_name, role)')
+      .select('*, sender:users!messages_sender_id_fkey(id, full_name, role, avatar_url)')
       .order('created_at', { ascending: true })
       .limit(100)
 
@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
     return NextResponse.json({ messages: data || [] })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -44,7 +43,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'receiverId and content are required' }, { status: 400 })
     }
 
-    const { data, error } = await supabase
+    // Insert message
+    const { data: msg, error } = await supabase
       .from('messages')
       .insert({ sender_id: user.id, receiver_id: receiverId, content: content.trim() })
       .select('*, sender:users!messages_sender_id_fkey(id, full_name, role)')
@@ -52,7 +52,20 @@ export async function POST(request: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-    return NextResponse.json({ message: data })
+    // Async PII check — fire and forget (don't block the response)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    fetch(`${siteUrl}/api/chat/flag`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messageId: msg.id,
+        content: msg.content,
+        senderId: user.id,
+        senderName: msg.sender?.full_name,
+      }),
+    }).catch(() => {}) // don't await — don't block user
+
+    return NextResponse.json({ message: msg })
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }

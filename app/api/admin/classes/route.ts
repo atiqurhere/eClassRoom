@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('classes')
-      .select('id, class_name, section, academic_year, teacher_id, users!classes_teacher_id_fkey(full_name)')
+      .select('id, class_name, section, academic_year, course_id, teacher_id, users!classes_teacher_id_fkey(full_name), courses(name)')
       .order('class_name')
 
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -33,8 +33,9 @@ export async function POST(request: NextRequest) {
     const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
     if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { class_name, section, academic_year, teacher_id } = await request.json()
+    const { class_name, section, academic_year, teacher_id, course_id } = await request.json()
     if (!class_name) return NextResponse.json({ error: 'class_name is required' }, { status: 400 })
+    if (!course_id)  return NextResponse.json({ error: 'course_id is required — every class must belong to a course' }, { status: 400 })
 
     // Use service role to bypass RLS
     const { createClient: createAdmin } = await import('@supabase/supabase-js')
@@ -45,6 +46,7 @@ export async function POST(request: NextRequest) {
 
     const { data, error } = await adminClient.from('classes').insert({
       class_name,
+      course_id,
       section: section || null,
       academic_year: academic_year || null,
       teacher_id: teacher_id || null,

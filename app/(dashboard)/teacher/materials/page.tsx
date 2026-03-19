@@ -75,7 +75,7 @@ export default function TeacherMaterialsPage() {
         <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Upload PDFs and slides for your students</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="dash-grid-main">
         {/* Upload Form */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>⬆️ Upload Material</p>

@@ -81,7 +81,7 @@ export default function TeacherAttendancePage() {
         <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Auto-recorded on join · Manual override below</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 20, alignItems: 'start' }}>
+      <div className="dash-grid-main">
         {/* Session list */}
         <div style={{ background: card, border: bdr, borderRadius: 14, overflow: 'hidden' }}>
           <div style={{ padding: '14px 16px', borderBottom: bdr }}>

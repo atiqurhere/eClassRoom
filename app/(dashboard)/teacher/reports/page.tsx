@@ -89,11 +89,12 @@ export default async function TeacherReportsPage() {
         ))}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="dash-grid-main">
         {/* Session History */}
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>🎥 Recent Sessions</p>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: 380 }}>
             <thead><tr style={{ borderBottom: bdr }}>{['Title', 'Course', 'Date', 'Status'].map(h => (
               <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700 }}>{h}</th>
             ))}</tr></thead>
@@ -114,7 +115,7 @@ export default async function TeacherReportsPage() {
                 </tr>
               ))
             }</tbody>
-          </table>
+          </table></div>
         </div>
 
         {/* Assignment Stats */}

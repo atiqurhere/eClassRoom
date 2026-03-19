@@ -456,6 +456,74 @@ tr:hover td {
   }
 }
 
+/* ── section-card-action: stretch to full width on mobile so search/filter wraps ── */
+@media (max-width: 767px) {
+  .section-card-action {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* Any search input inside section-card-action: full-width */
+  .section-card-action input,
+  .section-card-action select {
+    flex: 1;
+    min-width: 120px;
+    width: 100% !important;
+    max-width: 100%;
+  }
+
+  /* Collapse Tailwind grid-cols-2 in modals */
+  .grid.grid-cols-2,
+  .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Teacher classes: sidebar nav + detail — full-width stacked */
+  .xl\:grid-cols-4 {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Assignment card title row: wrap due badge below title */
+  .assignment-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 6px !important;
+  }
+
+  /* Inline style grids with 1fr 1fr: We can't select them with CSS alone,
+     so the global approach catches .grid.grid-cols-2 above */
+
+  /* Admin users action bar: stack search + filter + button vertically */
+  .page-header.flex.items-center {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  /* Teacher dashboard Start Live Class button: don't overflow */
+  .page-header a,
+  .page-header button {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* Submitted assignment card: stack grade to the right neatly */
+  .submitted-card {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  /* Live class join button: always full width */
+  .live-join-btn {
+    width: 100% !important;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
 @layer components {
   /* Glass card */
   .glass-card {

@@ -178,7 +178,12 @@ export default function TeacherLiveClassPage() {
         <div>
           {activeClass ? (
             <SectionCard title={`🔴 LIVE: ${activeClass.title}`} icon={<Video size={15} style={{ color: '#ef4444' }} />}>
-              <JitsiMeeting roomId={activeClass.room_id} displayName={user?.user_metadata?.full_name || 'Teacher'} />
+              <JitsiMeeting
+                roomName={activeClass.room_id}
+                userName={user?.user_metadata?.full_name || user?.email || 'Teacher'}
+                userEmail={user?.email || ''}
+                isModerator
+              />
             </SectionCard>
           ) : (
             <SectionCard title="Past Sessions" icon={<Video size={15} />} scrollable>

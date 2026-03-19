@@ -5,6 +5,7 @@ import { MessageCircle, Search, Users, ArrowLeft } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ChatWindow } from '@/components/messaging/ChatWindow'
 import { Loading } from '@/components/ui/Loading'
+import { useAuth } from '@/lib/hooks/useAuth'
 
 interface Contact {
   id: string
@@ -14,6 +15,7 @@ interface Contact {
 }
 
 export default function MessagesPage() {
+  const { user, loading: authLoading } = useAuth()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [selected, setSelected] = useState<Contact | null>(null)
   const [search, setSearch] = useState('')
@@ -22,10 +24,10 @@ export default function MessagesPage() {
 
   useEffect(() => {
     const init = async () => {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+      if (authLoading) return
+      if (!user) { setLoading(false); return }
       setCurrentUserId(user.id)
+      const supabase = createClient()
       const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
       let query = supabase.from('users').select('id, full_name, role, email').neq('id', user.id)
       if (profile?.role === 'student') query = query.in('role', ['teacher', 'admin'])
@@ -34,7 +36,7 @@ export default function MessagesPage() {
       setLoading(false)
     }
     init()
-  }, [])
+  }, [user, authLoading])
 
   const roleLabel: Record<string, string> = { admin: '👑 Admin', teacher: '👩‍🏫 Teacher', student: '👨‍🎓 Student' }
   const roleColor: Record<string, string> = { admin: 'var(--accent-red)', teacher: 'var(--accent-blue)', student: 'var(--accent-green)' }

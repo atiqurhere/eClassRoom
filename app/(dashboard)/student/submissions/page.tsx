@@ -15,7 +15,7 @@ import { formatDistanceToNow } from 'date-fns'
 import { storageService } from '@/lib/services/storage.service'
 
 export default function StudentSubmissionsPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const params = useSearchParams()
   const preselectedAssignment = params.get('assignmentId')
   const [submissions, setSubmissions] = useState<any[]>([])
@@ -27,7 +27,8 @@ export default function StudentSubmissionsPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const fetchData = useCallback(async () => {
-    if (!user) return
+    if (authLoading) return
+    if (!user) { setLoading(false); return }
     setLoading(true)
     const supabase = createClient()
     const { data } = await supabase

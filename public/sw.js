@@ -24,9 +24,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   // Only cache GET requests
   if (event.request.method !== 'GET') return
-  // Skip API routes and Supabase
+  // Skip API routes, Supabase, and ALL external domains (Jitsi, Google, etc.) to prevent CORS/opaque response failures
   const url = new URL(event.request.url)
   if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) return
+  if (url.hostname !== self.location.hostname) return
 
   event.respondWith(
     caches.match(event.request).then((cached) => {

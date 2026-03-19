@@ -6,9 +6,11 @@ import { createClient } from '@/lib/supabase/client'
 import { SectionCard } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { SkeletonRow } from '@/components/ui/Loading'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { Users, CalendarDays, Clock, CheckCircle, XCircle } from 'lucide-react'
 
 export default function TeacherAttendancePage() {
+  const { user, loading: authLoading } = useAuth()
   const [sessions, setSessions]               = useState<any[]>([])
   const [selectedSession, setSelectedSession] = useState<string>('')
   const [attendances, setAttendances]         = useState<any[]>([])
@@ -17,10 +19,10 @@ export default function TeacherAttendancePage() {
 
   // Fetch this teacher's ended live sessions (with class + course info)
   const fetchSessions = useCallback(async () => {
+    if (authLoading) return
+    if (!user) { setLoadingSessions(false); return }
     setLoadingSessions(true)
     const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
     const { data } = await supabase
       .from('live_classes')
       .select('id, title, start_time, class_id, classes(id, class_name, section, course_id, courses(name))')
@@ -30,9 +32,9 @@ export default function TeacherAttendancePage() {
       .limit(20)
     setSessions(data || [])
     setLoadingSessions(false)
-  }, [])
+  }, [user, authLoading])
 
-  useEffect(() => { fetchSessions() }, [fetchSessions])
+  useEffect(() => { fetchSessions() }, [fetchSessions, authLoading])
 
   const fetchAttendance = useCallback(async (sessionId: string) => {
     setLoadingAttendance(true)

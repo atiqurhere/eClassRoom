@@ -16,7 +16,7 @@ import { useForm } from 'react-hook-form'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function TeacherClassesPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [courses, setCourses] = useState<any[]>([])
   const [materials, setMaterials] = useState<any[]>([])
   const [selectedCourse, setSelectedCourse] = useState<any>(null)
@@ -29,7 +29,8 @@ export default function TeacherClassesPage() {
   const assignForm = useForm<any>({ defaultValues: { max_score: 100 } })
 
   const fetchCourses = useCallback(async () => {
-    if (!user) return
+    if (authLoading) return
+    if (!user) { setLoading(false); return }
     setLoading(true)
     const supabase = createClient()
     // v2: teachers are assigned to classes, not courses

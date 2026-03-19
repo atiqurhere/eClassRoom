@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { formatDistanceToNow } from 'date-fns'
 
 export default function StudentClassesPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   // In v2: a "course" is the top-level item; each course has many classes.
   // The student is enrolled into a COURSE via course_enrollments.
   // We show courses in the sidebar, then the selected course's classes + materials + assignments.
@@ -25,7 +25,8 @@ export default function StudentClassesPage() {
   const [detailLoading, setDetailLoading] = useState(false)
 
   const fetchCourses = useCallback(async () => {
-    if (!user) return
+    if (authLoading) return
+    if (!user) { setLoading(false); return }
     setLoading(true)
     const supabase = createClient()
     // v2: get enrolled courses

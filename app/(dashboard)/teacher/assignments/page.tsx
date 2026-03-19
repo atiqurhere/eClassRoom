@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
+import { useAuth } from '@/lib/hooks/useAuth'
 import { createClient } from '@/lib/supabase/client'
 import { SectionCard } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -38,12 +39,13 @@ export default function TeacherAssignmentsPage() {
   const [form, setForm] = useState({ title: '', description: '', due_date: '', max_score: '100', class_id: '' })
   const [gradeForm, setGradeForm] = useState({ score: '', feedback: '' })
 
+  const { user, loading: authLoading } = useAuth()
   const supabase = createClient()
 
   const fetchData = useCallback(async () => {
+    if (authLoading) return
+    if (!user) { setLoading(false); return }
     setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
 
     const [aRes, cRes] = await Promise.all([
       supabase.from('assignments')
@@ -91,6 +93,7 @@ export default function TeacherAssignmentsPage() {
     setSelected(assignment)
     setActiveTab('submissions')
     setLoading(true)
+    if (authLoading || !user) { setLoading(false); return } // Guard against auth loading or no user
     const { data } = await supabase
       .from('submissions')
       .select('id, status, score, feedback, submitted_at, file_url, student_id, users!submissions_student_id_fkey(full_name)')

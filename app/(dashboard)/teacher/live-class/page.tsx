@@ -11,7 +11,7 @@ import { JitsiMeeting }  from '@/components/live-class/JitsiMeeting'
 import { toast }         from 'sonner'
 
 export default function TeacherLiveClassPage() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [classes, setClasses]   = useState<any[]>([])
   const [sessions, setSessions] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
@@ -21,7 +21,8 @@ export default function TeacherLiveClassPage() {
   const [activeSession, setActiveSession] = useState<{ id: string; title: string; room_id: string } | null>(null)
 
   const fetchData = useCallback(async () => {
-    if (!user) return
+    if (authLoading) return               // auth still initialising
+    if (!user) { setLoading(false); return }  // not logged in
     setLoading(true)
     const supabase = createClient()
     const [clsRes, sesRes] = await Promise.all([
@@ -42,7 +43,7 @@ export default function TeacherLiveClassPage() {
     setLoading(false)
   }, [user])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData, authLoading])
 
   const startSession = async (classId: string, className: string) => {
     if (!user) return

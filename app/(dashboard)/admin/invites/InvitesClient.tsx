@@ -30,26 +30,13 @@ function generateCode(prefix: string) {
 
 export default function InvitesClient({ studentInvites: initialStudents, teacherInvites: initialTeachers, classes, adminId }: Props) {
   const supabase = createClient()
-  const [tab, setTab]                   = useState<'students' | 'teachers'>('students')
-  const [students, setStudents]         = useState(initialStudents)
-  const [teachers, setTeachers]         = useState(initialTeachers)
-  const [showModal, setShowModal]       = useState(false)
-  const [loading, setLoading]           = useState(false)
-  const [refreshing, setRefreshing]     = useState(false)
-  const [copied, setCopied]             = useState<string | null>(null)
-
-  const refreshData = async () => {
-    setRefreshing(true)
-    try {
-      const [sRes, tRes] = await Promise.all([
-        supabase.from('student_invites').select('*').order('created_at', { ascending: false }),
-        supabase.from('teacher_invites').select('*').order('created_at', { ascending: false }),
-      ])
-      if (sRes.data) setStudents(sRes.data as StudentInvite[])
-      if (tRes.data) setTeachers(tRes.data as TeacherInvite[])
-    } catch {}
-    setRefreshing(false)
-  }
+  const [tab, setTab]               = useState<'students' | 'teachers'>('students')
+  const [students, setStudents]     = useState(initialStudents)
+  const [teachers, setTeachers]     = useState(initialTeachers)
+  const [showModal, setShowModal]   = useState(false)
+  const [loading, setLoading]       = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [copied, setCopied]         = useState<string | null>(null)
 
   // Student form
   const [sName, setSName]   = useState('')
@@ -63,6 +50,20 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
     setCopied(code)
     setTimeout(() => setCopied(null), 2000)
     toast.success('Copied to clipboard!')
+  }
+
+  const refreshData = async () => {
+    setRefreshing(true)
+    try {
+      const [sRes, tRes] = await Promise.all([
+        supabase.from('student_invites').select('*').order('created_at', { ascending: false }),
+        supabase.from('teacher_invites').select('*').order('created_at', { ascending: false }),
+      ])
+      if (sRes.data) setStudents(sRes.data as StudentInvite[])
+      if (tRes.data) setTeachers(tRes.data as TeacherInvite[])
+      toast.success('Refreshed!')
+    } catch { toast.error('Refresh failed') }
+    setRefreshing(false)
   }
 
   const handleGenerateStudent = async (e: React.FormEvent) => {
@@ -100,7 +101,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
     } catch (err: any) { toast.error(err.message) } finally { setLoading(false) }
   }
 
-  const handleDelete = async (table: 'student_invites' | 'teacher_invites', id: string, codeType: string) => {
+  const handleDelete = async (table: 'student_invites' | 'teacher_invites', id: string) => {
     if (!confirm('Delete this invite? The user will lose access if already claimed.')) return
     const { error } = await supabase.from(table).delete().eq('id', id)
     if (error) { toast.error(error.message); return }
@@ -119,27 +120,29 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
   return (
     <div className="animate-fade-in">
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28, gap: 10, flexWrap: 'wrap' }}>
         <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Invites & IDs</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>Invites &amp; IDs</h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: 4 }}>
             Generate student and teacher IDs for account registration
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
-        >
-          <Plus size={16} /> Generate ID
-        </button>
-        <button
-          onClick={refreshData}
-          disabled={refreshing}
-          title="Refresh status"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'var(--bg-hover)', border: '1px solid var(--border)', color: 'var(--text-secondary)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}
-        >
-          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={refreshData}
+            disabled={refreshing}
+            title="Refresh to see latest claim status"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 10, color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}
+          >
+            <RefreshCw size={14} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
+          </button>
+          <button
+            onClick={() => setShowModal(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            <Plus size={16} /> Generate ID
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -174,7 +177,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
 
       {/* Students Table */}
       {tab === 'students' && (
-        <div style={{ ...card, padding: 0, borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
           {students.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <GraduationCap size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
@@ -183,49 +186,50 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
             </div>
           ) : (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 560 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Student ID', 'Name', 'Class', 'Shift', 'Status', ''].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {students.map(s => (
-                  <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-blue)' }}>{s.student_code}</code>
-                        <button onClick={() => copyCode(s.student_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
-                          {copied === s.student_code ? <CheckCircle size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.full_name}</td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
-                      {classes.find(c => c.id === s.class_id)?.class_name ?? '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.shift ?? '—'}</td>
-                    <td style={{ padding: '12px 16px' }}><span style={badge(!!s.user_id)}>{s.user_id ? 'Claimed' : 'Pending'}</span></td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {!s.user_id && (
-                        <button onClick={() => handleDelete('student_invites', s.id, s.student_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </td>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 560 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Student ID', 'Name', 'Class', 'Shift', 'Status', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {students.map(s => (
+                    <tr key={s.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <code style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--accent-blue)' }}>{s.student_code}</code>
+                          <button onClick={() => copyCode(s.student_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                            {copied === s.student_code ? <CheckCircle size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.full_name}</td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
+                        {classes.find(c => c.id === s.class_id)?.class_name ?? '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.shift ?? '—'}</td>
+                      <td style={{ padding: '12px 16px' }}><span style={badge(!!s.user_id)}>{s.user_id ? 'Claimed' : 'Pending'}</span></td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {!s.user_id && (
+                          <button onClick={() => handleDelete('student_invites', s.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
 
       {/* Teachers Table */}
       {tab === 'teachers' && (
-        <div style={{ ...card, padding: 0, borderRadius: 14, overflow: 'hidden' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
           {teachers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <Users size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
@@ -234,41 +238,42 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
             </div>
           ) : (
             <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 480 }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['Teacher ID', 'Name', 'Status', 'Claimed At', ''].map(h => (
-                    <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {teachers.map(t => (
-                  <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                    <td style={{ padding: '12px 16px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <code style={{ fontFamily: 'monospace', fontWeight: 700, color: '#22c55e' }}>{t.teacher_code}</code>
-                        <button onClick={() => copyCode(t.teacher_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
-                          {copied === t.teacher_code ? <CheckCircle size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
-                        </button>
-                      </div>
-                    </td>
-                    <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text-primary)' }}>{t.full_name}</td>
-                    <td style={{ padding: '12px 16px' }}><span style={badge(!!t.user_id)}>{t.user_id ? 'Claimed' : 'Pending'}</span></td>
-                    <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
-                      {t.claimed_at ? new Date(t.claimed_at).toLocaleDateString() : '—'}
-                    </td>
-                    <td style={{ padding: '12px 16px' }}>
-                      {!t.user_id && (
-                        <button onClick={() => handleDelete('teacher_invites', t.id, t.teacher_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
-                          <Trash2 size={15} />
-                        </button>
-                      )}
-                    </td>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 480 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Teacher ID', 'Name', 'Status', 'Claimed At', ''].map(h => (
+                      <th key={h} style={{ textAlign: 'left', padding: '12px 16px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', color: 'var(--text-muted)' }}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {teachers.map(t => (
+                    <tr key={t.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '12px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <code style={{ fontFamily: 'monospace', fontWeight: 700, color: '#22c55e' }}>{t.teacher_code}</code>
+                          <button onClick={() => copyCode(t.teacher_code)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                            {copied === t.teacher_code ? <CheckCircle size={14} style={{ color: '#22c55e' }} /> : <Copy size={14} />}
+                          </button>
+                        </div>
+                      </td>
+                      <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--text-primary)' }}>{t.full_name}</td>
+                      <td style={{ padding: '12px 16px' }}><span style={badge(!!t.user_id)}>{t.user_id ? 'Claimed' : 'Pending'}</span></td>
+                      <td style={{ padding: '12px 16px', color: 'var(--text-muted)' }}>
+                        {t.claimed_at ? new Date(t.claimed_at).toLocaleDateString() : '—'}
+                      </td>
+                      <td style={{ padding: '12px 16px' }}>
+                        {!t.user_id && (
+                          <button onClick={() => handleDelete('teacher_invites', t.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent-red)' }}>
+                            <Trash2 size={15} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
@@ -293,15 +298,11 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
             {tab === 'students' ? (
               <form onSubmit={handleGenerateStudent} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h2 style={{ fontWeight: 700, fontSize: '1.125rem', color: 'var(--text-primary)' }}>Generate Student ID</h2>
-                {[
-                  { label: 'Full Name', value: sName, onChange: (v: string) => setSName(v), placeholder: "Student's full name", required: true },
-                ].map(f => (
-                  <div key={f.label}>
-                    <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>{f.label}</label>
-                    <input value={f.value} onChange={e => f.onChange(e.target.value)} placeholder={f.placeholder} required={f.required}
-                      style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }} />
-                  </div>
-                ))}
+                <div>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Full Name</label>
+                  <input value={sName} onChange={e => setSName(e.target.value)} placeholder="Student's full name" required
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
+                </div>
                 <div>
                   <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Class</label>
                   <select value={sClass} onChange={e => setSClass(e.target.value)}
@@ -332,7 +333,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                 <div>
                   <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Full Name</label>
                   <input value={tName} onChange={e => setTName(e.target.value)} placeholder="Teacher's full name" required
-                    style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }} />
+                    style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
                   <button type="button" onClick={() => setShowModal(false)} style={{ flex: 1, padding: '10px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-secondary)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>

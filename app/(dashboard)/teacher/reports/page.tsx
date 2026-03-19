@@ -1,4 +1,4 @@
-export const dynamic   = 'force-dynamic'
+export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 import { createClient } from '@/lib/supabase/server'
@@ -20,42 +20,42 @@ export default async function TeacherReportsPage() {
   // Attendance stats per course (just counts from live_classes → join)
   const { data: sessions } = courseIds.length
     ? await supabase
-        .from('live_classes')
-        .select('id, title, start_time, course_id, status')
-        .in('course_id', courseIds)
-        .order('start_time', { ascending: false })
-        .limit(20)
+      .from('live_classes')
+      .select('id, title, start_time, course_id, status')
+      .in('course_id', courseIds)
+      .order('start_time', { ascending: false })
+      .limit(20)
     : { data: [] }
 
   // Assignment stats
   const { data: assignments } = courseIds.length
     ? await supabase
-        .from('assignments')
-        .select('id, title, course_id, due_date, max_score')
-        .in('course_id', courseIds)
-        .order('due_date', { ascending: false })
+      .from('assignments')
+      .select('id, title, course_id, due_date, max_score')
+      .in('course_id', courseIds)
+      .order('due_date', { ascending: false })
     : { data: [] }
 
   // Submission counts per assignment
   const assignmentIds = ((assignments || []) as any[]).map((a: any) => a.id)
   const { data: submissions } = assignmentIds.length
     ? await supabase
-        .from('submissions')
-        .select('id, assignment_id, score, status')
-        .in('assignment_id', assignmentIds)
+      .from('submissions')
+      .select('id, assignment_id, score, status')
+      .in('assignment_id', assignmentIds)
     : { data: [] }
 
   const submissionsByAssignment: Record<string, any[]> = {}
-  ;(submissions || []).forEach((s: any) => {
-    if (!submissionsByAssignment[s.assignment_id]) submissionsByAssignment[s.assignment_id] = []
-    submissionsByAssignment[s.assignment_id].push(s)
-  })
+    ; (submissions || []).forEach((s: any) => {
+      if (!submissionsByAssignment[s.assignment_id]) submissionsByAssignment[s.assignment_id] = []
+      submissionsByAssignment[s.assignment_id].push(s)
+    })
 
   const courseMap: Record<string, any> = {}
-  ;(courses || []).forEach((c: any) => { courseMap[c.id] = c })
+    ; (courses || []).forEach((c: any) => { courseMap[c.id] = c })
 
   const card = 'var(--bg-card)'
-  const bdr  = '1px solid var(--border)'
+  const bdr = '1px solid var(--border)'
 
   const totalSessions = (sessions || []).length
   const endedSessions = ((sessions || []) as any[]).filter((s: any) => s.status === 'ended').length
@@ -94,28 +94,30 @@ export default async function TeacherReportsPage() {
         <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>🎥 Recent Sessions</p>
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: 380 }}>
-            <thead><tr style={{ borderBottom: bdr }}>{['Title', 'Course', 'Date', 'Status'].map(h => (
-              <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700 }}>{h}</th>
-            ))}</tr></thead>
-            <tbody>{(sessions || []).length === 0
-              ? <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>No sessions yet</td></tr>
-              : ((sessions || []) as any[]).map((s: any) => (
-                <tr key={s.id} style={{ borderBottom: bdr }}>
-                  <td style={{ padding: '8px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.title}</td>
-                  <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{courseMap[s.course_id]?.name}</td>
-                  <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
-                  <td style={{ padding: '8px' }}>
-                    <span style={{ padding: '2px 8px', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700,
-                      background: s.status === 'live' ? '#22c55e20' : '#4f8ef718',
-                      color: s.status === 'live' ? '#22c55e' : '#4f8ef7' }}>
-                      {s.status}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            }</tbody>
-          </table></div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', minWidth: 380 }}>
+              <thead><tr style={{ borderBottom: bdr }}>{['Title', 'Course', 'Date', 'Status'].map(h => (
+                <th key={h} style={{ textAlign: 'left', padding: '6px 8px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700 }}>{h}</th>
+              ))}</tr></thead>
+              <tbody>{(sessions || []).length === 0
+                ? <tr><td colSpan={4} style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>No sessions yet</td></tr>
+                : ((sessions || []) as any[]).map((s: any) => (
+                  <tr key={s.id} style={{ borderBottom: bdr }}>
+                    <td style={{ padding: '8px', color: 'var(--text-primary)', fontWeight: 500 }}>{s.title}</td>
+                    <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{courseMap[s.course_id]?.name}</td>
+                    <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
+                    <td style={{ padding: '8px' }}>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700,
+                        background: s.status === 'live' ? '#22c55e20' : '#4f8ef718',
+                        color: s.status === 'live' ? '#22c55e' : '#4f8ef7'
+                      }}>
+                        {s.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              }</tbody>
+            </table></div>
         </div>
 
         {/* Assignment Stats */}
@@ -150,8 +152,10 @@ export default async function TeacherReportsPage() {
                   </div>
                   {pct != null && (
                     <div style={{ marginTop: 8, background: 'var(--bg-secondary)', borderRadius: 100, height: 5 }}>
-                      <div style={{ width: `${pct}%`, height: '100%', borderRadius: 100,
-                        background: pct >= 70 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444' }} />
+                      <div style={{
+                        width: `${pct}%`, height: '100%', borderRadius: 100,
+                        background: pct >= 70 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444'
+                      }} />
                     </div>
                   )}
                 </div>

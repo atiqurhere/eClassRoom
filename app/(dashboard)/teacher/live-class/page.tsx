@@ -143,8 +143,9 @@ export default function TeacherLiveClassPage() {
                 {user && (
                   <JitsiMeeting
                     roomName={activeClass.room_id}
-                    userName={user.user_metadata?.full_name || 'Teacher'}
-                    isTeacher={true}
+                    userName={user.email || 'Teacher'}
+                    userEmail={user.email || ''}
+                    isModerator={true}
                   />
                 )}
               </div>

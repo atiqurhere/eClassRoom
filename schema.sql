@@ -239,6 +239,7 @@ CREATE TABLE public.submissions (
   content       text,
   file_url      text,
   submitted_at  timestamptz DEFAULT now(),
+  status        text DEFAULT 'submitted',
   score         numeric,
   feedback      text,
   graded_at     timestamptz,

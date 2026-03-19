@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Plus, FileText, Calendar, Users, BookOpen, Award, Trash2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { proxyFileUrl } from '@/lib/utils/proxyUrl'
 import { Button } from '@/components/ui/Button'
 import { SectionCard } from '@/components/ui/Card'
 import { AssignmentForm } from '@/components/assignments/AssignmentForm'
@@ -150,7 +151,7 @@ export default function TeacherClassDetailPage() {
                   <div>
                     <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.title}</p>
                     {m.file_url && (
-                      <a href={m.file_url} target="_blank" rel="noopener noreferrer"
+                      <a href={proxyFileUrl(m.file_url, m.title)} target="_blank" rel="noopener noreferrer"
                         className="text-xs" style={{ color: 'var(--accent-blue)' }}>View / Download</a>
                     )}
                   </div>

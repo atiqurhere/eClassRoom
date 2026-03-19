@@ -14,6 +14,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { formatDistanceToNow } from 'date-fns'
+import { proxyFileUrl } from '@/lib/utils/proxyUrl'
 
 export default function TeacherClassesPage() {
   const { user, loading: authLoading } = useAuth()
@@ -199,7 +200,7 @@ export default function TeacherClassesPage() {
                           </div>
                         </div>
                         <div className="flex gap-2 flex-shrink-0">
-                          {m.file_url && <a href={m.file_url} target="_blank" rel="noreferrer"><Button variant="ghost" size="sm">Open</Button></a>}
+                          {m.file_url && <a href={proxyFileUrl(m.file_url, m.title)} target="_blank" rel="noreferrer"><Button variant="ghost" size="sm">Open</Button></a>}
                           <button onClick={() => deleteMaterial(m.id)} className="p-1.5 rounded-lg" style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}><Trash2 size={13} /></button>
                         </div>
                       </div>

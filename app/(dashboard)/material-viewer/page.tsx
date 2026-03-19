@@ -1,20 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
-import { ExternalLink, Download, ArrowLeft, File, AlertTriangle, Loader2 } from 'lucide-react'
+import { ExternalLink, Download, ArrowLeft, AlertTriangle, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { proxyFileUrl } from '@/lib/utils/proxyUrl'
 
 /**
  * Determines how to render a file:
  *
- * - Images         → <img> directly (works fine from Supabase)
- * - Video          → <video> HTML5 player
- * - Text/Code      → fetch + <pre>
- * - PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, and ANY other type
- *                  → Google Docs Viewer proxy (https://docs.google.com/viewer?url=…)
- *                    Supabase returns X-Frame-Options:DENY which blocks direct iframe embeds.
- *                    Google Docs Viewer fetches the file server-side and renders it safely.
+ * - Images         → <img> via proxy URL
+ * - Video          → <video> HTML5 player via proxy URL
+ * - Text/Code      → fetch via proxy + <pre>
+ * - PDF            → <iframe> via /api/download?inline=true (native browser PDF viewer)
+ * - DOC/DOCX, PPT/PPTX, XLS/XLSX
+ *                  → Microsoft Office Online Viewer (needs publicly accessible URL)
+ *                    We route through /api/download so the file is served from our domain.
  */
 
 const IMAGE_EXTS  = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff']
@@ -26,16 +27,14 @@ function getExt(url: string) {
   return (url.split('?')[0].split('.').pop() || '').toLowerCase()
 }
 
-/** Auto-detect file category */
 function getCategory(ext: string) {
   if (IMAGE_EXTS.includes(ext)) return 'image'
   if (VIDEO_EXTS.includes(ext)) return 'video'
   if (TEXT_EXTS.includes(ext))  return 'text'
   if (PDF_EXTS.includes(ext))   return 'pdf'
-  return 'office' // DOCX, PPTX, XLSX etc → Microsoft Office Viewer
+  return 'office'
 }
 
-/** Convert plain-text URLs in a string to <a> tags */
 function linkify(text: string) {
   const urlRegex = /(https?:\/\/[^\s]+)/g
   const parts    = text.split(urlRegex)
@@ -47,7 +46,7 @@ function linkify(text: string) {
   )
 }
 
-export default function MaterialViewerPage() {
+function MaterialViewerContent() {
   const params    = useSearchParams()
   const router    = useRouter()
   const fileUrl   = params.get('url')         || ''
@@ -59,29 +58,29 @@ export default function MaterialViewerPage() {
 
   const [textContent, setTextContent] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
-  const [iframeKey, setIframeKey]     = useState(0)   // force refresh iframe
+  const [iframeKey, setIframeKey]     = useState(0)
 
-  // PDF uses our own proxy with inline=true so the browser renders it natively
-  const inlinePdfUrl = fileUrl 
-    ? `/api/download?url=${encodeURIComponent(fileUrl)}&filename=document.pdf&inline=true` 
-    : ''
+  // Proxy URL for all file access (hides raw Supabase URL)
+  const proxiedUrl     = proxyFileUrl(fileUrl, title + (ext ? '.' + ext : ''), false)
+  const proxiedInline  = proxyFileUrl(fileUrl, title + (ext ? '.' + ext : ''), true)
 
-  // Office Viewer URL — works best for PPTX, DOCX, XLSX
-  // Needs a publicly accessible URL, so we pass the raw Supabase public URL.
-  // We double encode the URL as required by MS viewer.
+  // For Microsoft Office Viewer we need a publicly accessible URL.
+  // Use the proxied URL served from our own domain — MS viewer can fetch it.
+  const origin    = typeof window !== 'undefined' ? window.location.origin : ''
   const officeUrl = fileUrl
-    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(origin + proxiedInline)}`
     : ''
 
   useEffect(() => {
     if (category === 'text' && fileUrl) {
       setTextLoading(true)
-      fetch(fileUrl)
+      // Fetch text content through our proxy
+      fetch(proxiedUrl)
         .then(r => r.text())
         .then(t => { setTextContent(t); setTextLoading(false) })
         .catch(() => { setTextContent('Could not load file content.'); setTextLoading(false) })
     }
-  }, [fileUrl, category])
+  }, [fileUrl, category, proxiedUrl])
 
   if (!fileUrl) {
     return (
@@ -107,10 +106,11 @@ export default function MaterialViewerPage() {
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <a href={fileUrl} target="_blank" rel="noopener noreferrer">
+          {/* Open in new tab via proxy (not raw Supabase URL) */}
+          <a href={proxiedInline} target="_blank" rel="noopener noreferrer">
             <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />}>Open in Tab</Button>
           </a>
-          <a href={`/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(title + '.' + ext)}`}>
+          <a href={proxiedUrl} download={title + (ext ? '.' + ext : '')}>
             <Button variant="gradient" size="sm" leftIcon={<Download size={13} />}>Download</Button>
           </a>
         </div>
@@ -126,26 +126,26 @@ export default function MaterialViewerPage() {
       {/* Viewer */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden', minHeight: 600 }}>
 
-        {/* Image */}
+        {/* Image — served via proxy */}
         {category === 'image' && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, minHeight: 500 }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={fileUrl} alt={title}
+            <img src={proxiedInline} alt={title}
               style={{ maxWidth: '100%', maxHeight: 640, borderRadius: 10, objectFit: 'contain' }} />
           </div>
         )}
 
-        {/* Video */}
+        {/* Video — served via proxy */}
         {category === 'video' && (
           <div style={{ padding: 24 }}>
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
             <video controls style={{ width: '100%', borderRadius: 10, maxHeight: 580 }}>
-              <source src={fileUrl} type={`video/${ext}`} />
+              <source src={proxiedInline} type={`video/${ext}`} />
             </video>
           </div>
         )}
 
-        {/* Plain Text / Code */}
+        {/* Plain Text / Code — fetched via proxy */}
         {category === 'text' && (
           textLoading
             ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300 }}>
@@ -160,17 +160,16 @@ export default function MaterialViewerPage() {
         {category === 'pdf' && (
           <iframe
             key={iframeKey}
-            src={inlinePdfUrl}
+            src={proxiedInline}
             style={{ width: '100%', height: 640, border: 'none' }}
             title={title}
             allow="fullscreen"
           />
         )}
 
-        {/* Office / Other — Microsoft Office Viewer */}
+        {/* Office / Other — Microsoft Office Online Viewer */}
         {category === 'office' && (
           <div style={{ position: 'relative' }}>
-            {/* Info bar */}
             <div style={{ padding: '10px 16px', background: 'rgba(79,142,247,0.07)', borderBottom: '1px solid var(--border)', fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span>📄 Rendered via Microsoft Office Viewer</span>
               <button onClick={() => setIframeKey(k => k + 1)}
@@ -189,5 +188,13 @@ export default function MaterialViewerPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function MaterialViewerPage() {
+  return (
+    <Suspense fallback={<div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}><Loader2 size={28} style={{ animation: 'spin 1s linear infinite' }} /></div>}>
+      <MaterialViewerContent />
+    </Suspense>
   )
 }

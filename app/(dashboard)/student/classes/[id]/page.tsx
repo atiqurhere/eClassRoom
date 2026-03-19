@@ -8,6 +8,7 @@ import { SectionCard } from '@/components/ui/Card'
 import { SubmissionForm } from '@/components/assignments/SubmissionForm'
 import { Loading } from '@/components/ui/Loading'
 import { useParams } from 'next/navigation'
+import { proxyFileUrl } from '@/lib/utils/proxyUrl'
 
 export default function StudentClassDetailPage() {
   const params = useParams()
@@ -172,7 +173,7 @@ export default function StudentClassDetailPage() {
                   </div>
                 </div>
                 {m.file_url && (
-                  <a href={m.file_url} target="_blank" rel="noopener noreferrer">
+                  <a href={proxyFileUrl(m.file_url, m.title)} target="_blank" rel="noopener noreferrer">
                     <Button size="sm" variant="ghost"><Download size={14} /></Button>
                   </a>
                 )}

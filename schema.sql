@@ -29,6 +29,7 @@ CREATE TABLE public.users (
 );
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own profile"   ON public.users FOR SELECT USING (auth.uid()::uuid = id);
+CREATE POLICY "Authenticated users view profiles" ON public.users FOR SELECT USING (auth.uid() IS NOT NULL);
 CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (public.get_my_role() = 'admin');
 CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid()::uuid = id);
 CREATE POLICY "Admins can update all users"  ON public.users FOR UPDATE USING (public.get_my_role() = 'admin');

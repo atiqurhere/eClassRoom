@@ -296,7 +296,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Enrolled Course</label>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Enroll in Course</label>
                   <select value={sCourse} onChange={e => setSCourse(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}>
                     <option value="">— No course assigned yet —</option>

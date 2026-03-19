@@ -23,6 +23,7 @@ CREATE TABLE public.users (
   full_name   text NOT NULL,
   role        text NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
   avatar_url  text,
+  student_id  text UNIQUE,                   -- LQA code set after invite claim (students only)
   created_at  timestamptz DEFAULT now() NOT NULL,
   updated_at  timestamptz DEFAULT now() NOT NULL
 );
@@ -107,7 +108,7 @@ CREATE TABLE public.student_invites (
   id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_code text UNIQUE NOT NULL,
   full_name    text NOT NULL,
-  course_ids   uuid[] DEFAULT '{}',           -- courses to auto-enroll on signup
+  course_id    uuid REFERENCES public.courses(id) ON DELETE SET NULL,  -- course to auto-enroll on signup
   shift        text CHECK (shift IN ('morning','afternoon','evening', NULL)),
   user_id      uuid UNIQUE REFERENCES public.users(id) ON DELETE SET NULL,
   claimed_at   timestamptz,

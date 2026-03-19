@@ -10,9 +10,21 @@ export async function POST(request: NextRequest) {
     const { data: admin } = await supabase.from('users').select('role').eq('id', user.id).single()
     if (admin?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { full_name, email, password, role, student_id } = await request.json()
+    const body = await request.json()
+    const { full_name, email, password, role, student_id } = body
 
-    // Use Service Role key to create user (needs SUPABASE_SERVICE_ROLE_KEY set)
+    // Server-side validation
+    if (!full_name?.trim()) return NextResponse.json({ error: 'Full name is required' }, { status: 400 })
+    if (!email?.trim())     return NextResponse.json({ error: 'Email is required' }, { status: 400 })
+    if (!password || password.length < 6) return NextResponse.json({ error: 'Password must be at least 6 characters' }, { status: 400 })
+    if (!role)              return NextResponse.json({ error: 'Role is required' }, { status: 400 })
+
+    // Check service role key is available
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('SUPABASE_SERVICE_ROLE_KEY is not set!')
+      return NextResponse.json({ error: 'Server configuration error: missing service role key. Set SUPABASE_SERVICE_ROLE_KEY in Vercel environment variables.' }, { status: 500 })
+    }
+
     const { createClient: createAdmin } = await import('@supabase/supabase-js')
     const adminClient = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,34 +33,43 @@ export async function POST(request: NextRequest) {
 
     // Create auth user
     const { data: newAuth, error: authErr } = await adminClient.auth.admin.createUser({
-      email,
+      email: email.trim(),
       password,
       email_confirm: true,
-      user_metadata: { full_name, role },
+      user_metadata: { full_name: full_name.trim(), role },
     })
-    if (authErr) return NextResponse.json({ error: authErr.message }, { status: 400 })
+    if (authErr) {
+      console.error('Supabase createUser error:', authErr)
+      return NextResponse.json({ error: authErr.message }, { status: 400 })
+    }
 
     // Insert into public.users
     const { error: profileErr } = await adminClient.from('users').insert({
       id: newAuth.user.id,
-      email,
-      full_name,
+      email: email.trim(),
+      full_name: full_name.trim(),
       role,
     })
-    if (profileErr) return NextResponse.json({ error: profileErr.message }, { status: 400 })
+    if (profileErr) {
+      console.error('Profile insert error:', profileErr)
+      // Try to clean up the auth user if profile insert fails
+      await adminClient.auth.admin.deleteUser(newAuth.user.id).catch(() => {})
+      return NextResponse.json({ error: profileErr.message }, { status: 400 })
+    }
 
     // If student, create student record
     if (role === 'student' && student_id) {
-      await adminClient.from('students').insert({
+      const { error: stuErr } = await adminClient.from('students').insert({
         user_id: newAuth.user.id,
         student_id,
       })
+      if (stuErr) console.error('Student record error:', stuErr)
     }
 
     return NextResponse.json({ user: newAuth.user })
   } catch (err: any) {
     console.error('Create user error:', err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }
 
@@ -64,6 +85,10 @@ export async function DELETE(request: NextRequest) {
     const userId = request.nextUrl.searchParams.get('id')
     if (!userId) return NextResponse.json({ error: 'User ID required' }, { status: 400 })
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json({ error: 'Server configuration error: missing service role key' }, { status: 500 })
+    }
+
     const { createClient: createAdmin } = await import('@supabase/supabase-js')
     const adminClient = createAdmin(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -75,6 +100,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true })
   } catch (err: any) {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 })
   }
 }

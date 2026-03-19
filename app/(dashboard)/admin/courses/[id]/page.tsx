@@ -241,7 +241,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Add Class Modal */}
       <Modal
-        open={showClassModal}
+        isOpen={showClassModal}
         onClose={() => setShowClassModal(false)}
         title="Add Class"
         footer={
@@ -271,7 +271,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Enroll Students Modal */}
       <Modal
-        open={showEnrollModal}
+        isOpen={showEnrollModal}
         onClose={() => setShowEnrollModal(false)}
         title="Enroll Students"
         footer={<Button variant="ghost" onClick={() => setShowEnrollModal(false)}>Close</Button>}
@@ -315,26 +315,26 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
 
       {/* Delete Class Confirm */}
       <ConfirmModal
-        open={!!deleteClass}
+        isOpen={!!deleteClass}
         onClose={() => setDeleteClass(null)}
         onConfirm={handleDeleteClass}
         loading={deletingClass}
         title="Remove Class"
         message={`Remove class "${deleteClass?.class_name}"? This also deletes all its live sessions, materials, and assignments.`}
         confirmLabel="Remove"
-        danger
+        confirmVariant="danger"
       />
 
       {/* Unenroll Confirm */}
       <ConfirmModal
-        open={!!unenrollTarget}
+        isOpen={!!unenrollTarget}
         onClose={() => setUnenrollTarget(null)}
         onConfirm={handleUnenroll}
         loading={unenrolling}
         title="Remove Student"
         message={`Remove ${unenrollTarget?.student?.full_name} from this course?`}
         confirmLabel="Remove"
-        danger
+        confirmVariant="danger"
       />
     </div>
   )

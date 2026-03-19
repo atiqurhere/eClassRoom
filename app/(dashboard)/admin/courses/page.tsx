@@ -153,7 +153,7 @@ export default function AdminCoursesPage() {
         scrollable
       >
         {loading ? (
-          <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} cols={5} />)}</tbody></table>
+          <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
         ) : filtered.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
             <BookOpen size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
@@ -218,7 +218,7 @@ export default function AdminCoursesPage() {
 
       {/* Create / Edit Modal */}
       <Modal
-        open={showModal}
+        isOpen={showModal}
         onClose={() => setShowModal(false)}
         title={editCourse ? 'Edit Course' : 'New Course'}
         footer={
@@ -253,14 +253,14 @@ export default function AdminCoursesPage() {
 
       {/* Delete Confirm */}
       <ConfirmModal
-        open={!!deleteCourse}
+        isOpen={!!deleteCourse}
         onClose={() => setDeleteCourse(null)}
         onConfirm={handleDelete}
         loading={deleting}
         title="Delete Course"
         message={`Are you sure you want to delete "${deleteCourse?.name}"? This will also remove all its classes, assignments, and materials.`}
         confirmLabel="Delete"
-        danger
+        confirmVariant="danger"
       />
     </div>
   )

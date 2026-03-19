@@ -20,7 +20,7 @@ interface Assignment {
 
 interface Submission {
   id: string; status: string; score: number | null; feedback: string | null
-  submitted_at: string; file_url: string | null; student_id: string
+  submitted_at: string; file_url: string | null; student_id: string; content: string | null
   users?: { full_name: string }
 }
 

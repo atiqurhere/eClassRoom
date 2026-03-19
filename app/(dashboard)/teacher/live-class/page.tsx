@@ -180,7 +180,7 @@ export default function TeacherLiveClassPage() {
             <SectionCard title={`🔴 LIVE: ${activeClass.title}`} icon={<Video size={15} style={{ color: '#ef4444' }} />}>
               <JitsiMeeting
                 roomName={activeClass.room_id}
-                userName={user?.user_metadata?.full_name || user?.email || 'Teacher'}
+                userName={(user as any)?.user_metadata?.full_name || user?.email || 'Teacher'}
                 userEmail={user?.email || ''}
                 isModerator
               />

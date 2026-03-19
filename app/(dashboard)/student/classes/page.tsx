@@ -146,7 +146,7 @@ export default function StudentClassesPage() {
                           </div>
                         </div>
                         <ChevronRight size={15} style={{ color: 'var(--text-muted)' }} />
-                      </a>
+                      </Link>
                     ))}
                   </div>
                 )}

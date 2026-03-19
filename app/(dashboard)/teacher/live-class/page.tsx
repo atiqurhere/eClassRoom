@@ -1,14 +1,25 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Video, Play, Square, RefreshCw, Clock, Users, Maximize2, X } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Video, Play, Square, RefreshCw, Clock, Users, ExternalLink } from 'lucide-react'
 import { createClient }  from '@/lib/supabase/client'
 import { useAuth }       from '@/lib/hooks/useAuth'
 import { Button }        from '@/components/ui/Button'
 import { SectionCard }   from '@/components/ui/Card'
 import { SkeletonRow }   from '@/components/ui/Loading'
-import { JitsiMeeting }  from '@/components/live-class/JitsiMeeting'
 import { toast }         from 'sonner'
+
+/** Open the Jitsi room in a new browser tab (standalone /live-room page) */
+function openLiveRoom(roomId: string, title: string, userName: string, userEmail: string, isModerator: boolean) {
+  const params = new URLSearchParams({
+    room:  roomId,
+    name:  userName,
+    email: userEmail,
+    title: title,
+    ...(isModerator ? { mod: '1' } : {}),
+  })
+  window.open(`/live-room?${params.toString()}`, '_blank', 'noopener,noreferrer')
+}
 
 export default function TeacherLiveClassPage() {
   const { user, loading: authLoading } = useAuth()
@@ -17,12 +28,10 @@ export default function TeacherLiveClassPage() {
   const [loading, setLoading]   = useState(true)
   const [starting, setStarting] = useState<string | null>(null)
   const [ending, setEnding]     = useState<string | null>(null)
-  // Active session being displayed in the Jitsi embed
-  const [activeSession, setActiveSession] = useState<{ id: string; title: string; room_id: string } | null>(null)
 
   const fetchData = useCallback(async () => {
-    if (authLoading) return               // auth still initialising
-    if (!user) { setLoading(false); return }  // not logged in
+    if (authLoading) return
+    if (!user) { setLoading(false); return }
     setLoading(true)
     const supabase = createClient()
     const [clsRes, sesRes] = await Promise.all([
@@ -58,10 +67,16 @@ export default function TeacherLiveClassPage() {
       if (!res.ok) throw new Error(json.error || 'Failed to start')
       const lc = json.liveClass
       toast.success(`Session started for ${className}`)
-      fetchData()
-      // Open Jitsi embed in-page
+      await fetchData()
+      // Open in new tab immediately after session created
       if (lc?.room_id) {
-        setActiveSession({ id: lc.id, title: lc.title || className, room_id: lc.room_id })
+        openLiveRoom(
+          lc.room_id,
+          lc.title || className,
+          user.full_name || user.email || 'Teacher',
+          user.email || '',
+          true,
+        )
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to start live class')
@@ -81,7 +96,6 @@ export default function TeacherLiveClassPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to end')
       toast.success('Session ended')
-      if (activeSession?.id === sessionId) setActiveSession(null)
       fetchData()
     } catch (err: any) {
       toast.error(err.message || 'Failed to end session')
@@ -90,81 +104,36 @@ export default function TeacherLiveClassPage() {
     }
   }
 
-  const handleMeetingEnd = () => {
-    // When teacher clicks "Leave" inside Jitsi, also end the session
-    if (activeSession) endSession(activeSession.id)
-  }
-
   const live  = sessions.filter(s => s.status === 'live')
   const ended = sessions.filter(s => s.status !== 'live')
-
-  // If Jitsi is open, show the full-screen embed
-  if (activeSession) {
-    return (
-      <div className="space-y-4">
-        <div className="page-header flex items-center justify-between">
-          <div>
-            <h1>{activeSession.title}</h1>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              🔴 Live Now · Room: <code style={{ fontSize: '0.75rem', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: 4 }}>{activeSession.room_id}</code>
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="danger" leftIcon={<Square size={14} />}
-              loading={ending === activeSession.id}
-              onClick={() => endSession(activeSession.id)}>
-              End Session
-            </Button>
-            <Button variant="secondary" leftIcon={<X size={14} />}
-              onClick={() => setActiveSession(null)}>
-              Minimise
-            </Button>
-          </div>
-        </div>
-
-        {/* Info bar */}
-        <div style={{ padding: '10px 16px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
-          As the <b>teacher</b> you are the moderator. You can mute participants, record the session, and control the meeting.
-        </div>
-
-        {/* Jitsi embed */}
-        <div style={{ height: 620, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)' }}>
-          <JitsiMeeting
-            roomName={activeSession.room_id}
-            userName={user?.full_name || user?.email || 'Teacher'}
-            userEmail={user?.email || ''}
-            isModerator={true}
-            onMeetingEnd={handleMeetingEnd}
-          />
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
       <div className="page-header flex items-center justify-between">
         <div>
           <h1>Live Classes</h1>
-          <p>Start and manage live sessions. You will be the moderator with full controls.</p>
+          <p>Start and manage live sessions. Sessions open in a new tab with full Jitsi controls.</p>
         </div>
         <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchData}>Refresh</Button>
       </div>
 
-      {/* Jump back into live session */}
+      {/* Active live sessions banner */}
       {live.length > 0 && (
         <div style={{ padding: '14px 16px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 3px rgba(34,197,94,0.25)' }} />
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 3px rgba(34,197,94,0.25)', animation: 'pulse 2s infinite' }} />
             <div>
               <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>{live[0].title} — Live now</p>
               <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{(live[0].classes as any)?.class_name}</p>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="gradient" size="sm" leftIcon={<Video size={14} />}
-              onClick={() => setActiveSession({ id: live[0].id, title: live[0].title, room_id: live[0].room_id })}>
+            <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={14} />}
+              onClick={() => openLiveRoom(
+                live[0].room_id, live[0].title,
+                user?.full_name || user?.email || 'Teacher',
+                user?.email || '', true,
+              )}>
               Re-join
             </Button>
             <Button variant="danger" size="sm" leftIcon={<Square size={14} />}
@@ -198,9 +167,13 @@ export default function TeacherLiveClassPage() {
                       <td style={{ textAlign: 'right' }}>
                         {liveSes ? (
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <Button variant="gradient" size="sm" leftIcon={<Video size={13} />}
-                              onClick={() => setActiveSession({ id: liveSes.id, title: liveSes.title, room_id: liveSes.room_id })}>
-                              Join
+                            <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={13} />}
+                              onClick={() => openLiveRoom(
+                                liveSes.room_id, liveSes.title,
+                                user?.full_name || user?.email || 'Teacher',
+                                user?.email || '', true,
+                              )}>
+                              Open Room
                             </Button>
                             <Button variant="danger" size="sm" leftIcon={<Square size={13} />}
                               loading={ending === liveSes.id}

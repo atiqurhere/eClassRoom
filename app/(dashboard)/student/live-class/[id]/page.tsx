@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { useParams }     from 'next/navigation'
-import { Video, ArrowLeft, Users } from 'lucide-react'
+import { Video, ArrowLeft, Users, ExternalLink } from 'lucide-react'
 import { createClient }  from '@/lib/supabase/client'
 import { useAuth }       from '@/lib/hooks/useAuth'
-import { JitsiMeeting }  from '@/components/live-class/JitsiMeeting'
 import { Button }        from '@/components/ui/Button'
 import { Loading }       from '@/components/ui/Loading'
 import Link              from 'next/link'
@@ -16,7 +15,6 @@ export default function StudentLiveClassPage() {
   const { user } = useAuth()
   const [liveClass, setLiveClass] = useState<any>(null)
   const [loading, setLoading]     = useState(true)
-  const [joined, setJoined]       = useState(false)
   const [joining, setJoining]     = useState(false)
 
   useEffect(() => {
@@ -38,31 +36,28 @@ export default function StudentLiveClassPage() {
     if (!user || !liveClass) return
     setJoining(true)
     try {
-      // v2: attendance.student_id IS user.id directly
       const supabase = createClient()
-      await supabase.from('attendance').upsert({
+      // Mark attendance — student_id = user.id (v2 schema)
+      const { error } = await supabase.from('attendance').upsert({
         live_class_id: liveClass.id,
         student_id:    user.id,
         status:        'present',
         join_time:     new Date().toISOString(),
       }, { onConflict: 'live_class_id,student_id', ignoreDuplicates: false })
-    } catch { /* attendance is non-critical */ }
-    toast.success('Attendance marked ✓')
-    setJoined(true)
-    setJoining(false)
-  }
+      if (error) console.warn('Attendance error (non-critical):', error.message)
+    } catch (e) { /* attendance is non-critical */ }
 
-  const handleLeave = async () => {
-    if (!user || !liveClass) return
-    try {
-      const supabase = createClient()
-      await supabase.from('attendance')
-        .update({ leave_time: new Date().toISOString() })
-        .eq('live_class_id', liveClass.id)
-        .eq('student_id', user.id)
-    } catch {}
-    setJoined(false)
-    toast.info('You left the session')
+    toast.success('Attendance marked ✓ — opening room in new tab')
+
+    // Open the dedicated live-room page in a new tab
+    const params = new URLSearchParams({
+      room:  liveClass.room_id,
+      name:  user.full_name || user.email || 'Student',
+      email: user.email || '',
+      title: liveClass.title,
+    })
+    window.open(`/live-room?${params.toString()}`, '_blank', 'noopener,noreferrer')
+    setJoining(false)
   }
 
   if (loading) return <Loading text="Loading class..." />
@@ -84,37 +79,6 @@ export default function StudentLiveClassPage() {
     </div>
   )
 
-  // ── Joined: show Jitsi embed ──────────────────────────────────────────────
-  if (joined) {
-    return (
-      <div className="space-y-4">
-        <div className="page-header flex items-center justify-between">
-          <div>
-            <h1>{liveClass.title}</h1>
-            <p style={{ fontSize: '0.8125rem' }}>
-              {(liveClass.classes as any)?.courses?.name} · {(liveClass.classes as any)?.class_name} · Teacher: {(liveClass.users as any)?.full_name}
-            </p>
-          </div>
-          <Button variant="secondary" leftIcon={<ArrowLeft size={14} />} onClick={handleLeave}>Leave</Button>
-        </div>
-
-        <div style={{ padding: '10px 16px', background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)', borderRadius: 10, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-          ✅ Attendance marked · Your mic and camera are off by default. Use the toolbar below the video to enable them.
-        </div>
-
-        <div style={{ height: 620, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)' }}>
-          <JitsiMeeting
-            roomName={liveClass.room_id}
-            userName={user?.full_name || user?.email || 'Student'}
-            userEmail={user?.email || ''}
-            isModerator={false}
-            onMeetingEnd={handleLeave}
-          />
-        </div>
-      </div>
-    )
-  }
-
   // ── Pre-join screen ───────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
@@ -135,13 +99,18 @@ export default function StudentLiveClassPage() {
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{liveClass.title}</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 6, maxWidth: 380 }}>
             Teacher: <b>{(liveClass.users as any)?.full_name}</b><br />
-            Joining will mark you as present in attendance.
+            Clicking Join will mark you present and open the class in a new tab.
           </p>
         </div>
 
-        <Button variant="gradient" size="lg" leftIcon={<Users size={18} />} loading={joining} onClick={handleJoin}>
-          Join Class
-        </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+          <Button variant="gradient" size="lg" leftIcon={<ExternalLink size={18} />} loading={joining} onClick={handleJoin}>
+            Join Class (New Tab)
+          </Button>
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Your browser may ask to allow popups — please click Allow.
+          </p>
+        </div>
 
         <Link href="/student/dashboard">
           <Button variant="secondary" leftIcon={<ArrowLeft size={15} />}>Back to Dashboard</Button>

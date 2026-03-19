@@ -259,7 +259,7 @@ CREATE INDEX idx_submissions_student_id    ON public.submissions(student_id);
 -- ──────────────────────────────────────────────────────────────
 -- 11. ATTENDANCE (via live class → class level)
 -- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.attendance (
+CREATE TABLE IF NOT EXISTS public.attendance (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   live_class_id    uuid NOT NULL REFERENCES public.live_classes(id) ON DELETE CASCADE,
   student_id       uuid NOT NULL REFERENCES public.users(id)        ON DELETE CASCADE,
@@ -271,12 +271,21 @@ CREATE TABLE public.attendance (
   UNIQUE (live_class_id, student_id)
 );
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Students view own attendance"   ON public.attendance FOR SELECT USING (student_id = auth.uid()::uuid);
-CREATE POLICY "Teachers manage attendance"     ON public.attendance FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()::uuid));
-CREATE POLICY "System can record attendance"   ON public.attendance FOR INSERT WITH CHECK (true);
-CREATE POLICY "Admins view all attendance"     ON public.attendance FOR SELECT USING (public.get_my_role() = 'admin');
-CREATE INDEX idx_attendance_student_id    ON public.attendance(student_id);
-CREATE INDEX idx_attendance_live_class_id ON public.attendance(live_class_id);
+-- Students can fully manage their own attendance records (INSERT on join, UPDATE on leave)
+DROP POLICY IF EXISTS "Students manage own attendance"   ON public.attendance;
+DROP POLICY IF EXISTS "Students view own attendance"     ON public.attendance;
+DROP POLICY IF EXISTS "System can record attendance"     ON public.attendance;
+DROP POLICY IF EXISTS "Teachers manage attendance"       ON public.attendance;
+DROP POLICY IF EXISTS "Admins view all attendance"       ON public.attendance;
+DROP POLICY IF EXISTS "Admins manage all attendance"     ON public.attendance;
+CREATE POLICY "Students manage own attendance" ON public.attendance
+  FOR ALL USING (student_id = auth.uid()::uuid) WITH CHECK (student_id = auth.uid()::uuid);
+CREATE POLICY "Teachers manage attendance"     ON public.attendance
+  FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()::uuid));
+CREATE POLICY "Admins manage all attendance"   ON public.attendance
+  FOR ALL USING (public.get_my_role() = 'admin');
+CREATE INDEX IF NOT EXISTS idx_attendance_student_id    ON public.attendance(student_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_live_class_id ON public.attendance(live_class_id);
 
 -- ──────────────────────────────────────────────────────────────
 -- 12. SCHEDULES (timetable per class)

@@ -1,7 +1,18 @@
 import { ReactNode } from 'react'
 import { BookOpen, Users, Video, Star } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+import { redirect }     from 'next/navigation'
 
-export default function AuthLayout({ children }: { children: ReactNode }) {
+export default async function AuthLayout({ children }: { children: ReactNode }) {
+  // If already authenticated → send to their dashboard immediately
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: rpcRole } = await supabase.rpc('get_my_role')
+    const role = rpcRole ?? 'student'
+    redirect(`/${role}/dashboard`)
+  }
+
   return (
     <div className="min-h-screen flex" style={{ background: 'var(--bg-primary)' }}>
       {/* Left panel - Latifia branding */}

@@ -1,5 +1,8 @@
 import Link from 'next/link'
 import { ArrowRight, CheckCircle, MessageCircle } from 'lucide-react'
+import { createClient } from '@/lib/supabase/server'
+
+export const dynamic = 'force-dynamic'
 
 export const metadata = {
   title: 'Latifia Quraner Alo — Online Quran Learning Platform',
@@ -34,30 +37,45 @@ const stats = [
 const px = 'clamp(16px, 5vw, 48px)'
 const maxW: React.CSSProperties = { maxWidth: 1100, margin: '0 auto', width: '100%' }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Auth-aware: check if user is already logged in
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  let dashboardHref = '/login'
+  let isLoggedIn = false
+  if (user) {
+    isLoggedIn = true
+    const { data: rpcRole } = await supabase.rpc('get_my_role')
+    dashboardHref = `/${rpcRole ?? 'student'}/dashboard`
+  }
+
   return (
     <div style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', fontFamily: "'Inter', sans-serif", minHeight: '100vh' }}>
 
       {/* NAV */}
       <nav style={{ borderBottom: '1px solid var(--border)', background: 'rgba(15,17,23,0.97)', backdropFilter: 'blur(12px)', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ ...maxW, padding: `0 ${px}`, height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
             <div style={{ width: 36, height: 36, borderRadius: 10, background: 'linear-gradient(135deg,#22c55e,#16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>☪️</div>
             <div style={{ minWidth: 0 }}>
               <p style={{ fontWeight: 700, fontSize: 'clamp(0.7rem, 2.5vw, 0.9375rem)', color: 'var(--text-primary)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Latifia Quraner Alo</p>
               <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Online Quran Learning</p>
             </div>
           </div>
+          {/* Nav Actions — responsive */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <a href="https://latifiaquranonline.com/" target="_blank" rel="noopener noreferrer"
-              style={{ padding: '7px 14px', fontSize: '0.8rem', color: 'var(--text-secondary)', textDecoration: 'none', fontWeight: 500, display: 'none' }}
-              className="nav-desktop-link">
-              Main Website
-            </a>
-            <Link href="/login"
-              style={{ padding: '8px 18px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: '0.8375rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-              Sign In
-            </Link>
+            {isLoggedIn ? (
+              <Link href={dashboardHref}
+                style={{ padding: '8px 16px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 'clamp(0.75rem,2vw,0.875rem)', textDecoration: 'none', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                Dashboard <ArrowRight size={14} />
+              </Link>
+            ) : (
+              <Link href="/login"
+                style={{ padding: '8px 16px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderRadius: 8, fontWeight: 600, fontSize: 'clamp(0.75rem,2vw,0.875rem)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                Sign In
+              </Link>
+            )}
           </div>
         </div>
       </nav>
@@ -80,9 +98,9 @@ export default function LandingPage() {
             Latifia Quraner Alo delivers authentic Quranic education for students of all ages — helping you recite correctly, understand deeply, and apply Quranic teachings in daily life.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <Link href="/login"
+            <Link href={isLoggedIn ? dashboardHref : '/login'}
               style={{ padding: 'clamp(10px,2.5vw,14px) clamp(20px,4vw,32px)', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', borderRadius: 10, fontWeight: 700, fontSize: 'clamp(0.85rem,2vw,1rem)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 4px 24px rgba(34,197,94,0.3)' }}>
-              Start Learning <ArrowRight size={16} />
+              {isLoggedIn ? 'Go to Dashboard' : 'Start Learning'} <ArrowRight size={16} />
             </Link>
             <a href="https://latifiaquranonline.com/" target="_blank" rel="noopener noreferrer"
               style={{ padding: 'clamp(10px,2.5vw,14px) clamp(20px,4vw,32px)', background: 'var(--bg-card)', color: 'var(--text-primary)', borderRadius: 10, fontWeight: 600, fontSize: 'clamp(0.85rem,2vw,1rem)', textDecoration: 'none', border: '1px solid var(--border)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>

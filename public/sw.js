@@ -1,7 +1,5 @@
-const CACHE_NAME = 'latifia-eclassroom-v1'
+const CACHE_NAME = 'latifia-eclassroom-v3'
 const STATIC_ASSETS = [
-  '/',
-  '/login',
   '/manifest.json',
 ]
 
@@ -22,23 +20,43 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
-  if (event.request.method !== 'GET') return
-  // Skip API routes, Supabase, and ALL external domains (Jitsi, Google, etc.) to prevent CORS/opaque response failures
   const url = new URL(event.request.url)
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) return
-  if (url.hostname !== self.location.hostname) return
 
+  // Only handle GET requests
+  if (event.request.method !== 'GET') return
+
+  // Never intercept:
+  // - External domains (Jitsi, Supabase, Google, analytics, etc.)
+  // - Our own API routes
+  // - The live-room page (must always be fresh, never served stale)
+  // - Next.js internal routes
+  if (url.hostname !== self.location.hostname) return
+  if (url.pathname.startsWith('/api/')) return
+  if (url.pathname.startsWith('/live-room')) return
+  if (url.pathname.startsWith('/_next/')) return
+
+  // Network-first for HTML pages (always fresh content)
+  if (event.request.headers.get('accept')?.includes('text/html')) {
+    event.respondWith(
+      fetch(event.request).catch(() => caches.match(event.request))
+    )
+    return
+  }
+
+  // Cache-first for static assets (JS, CSS, images, fonts)
   event.respondWith(
     caches.match(event.request).then((cached) => {
-      const networkFetch = fetch(event.request).then((response) => {
-        if (response.ok) {
+      if (cached) return cached
+      return fetch(event.request).then((response) => {
+        if (response.ok && response.type === 'basic') {
           const clone = response.clone()
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
         }
         return response
+      }).catch(() => {
+        // If network fails and nothing cached, let the browser handle it naturally
+        return new Response('', { status: 408 })
       })
-      return cached || networkFetch
     })
   )
 })

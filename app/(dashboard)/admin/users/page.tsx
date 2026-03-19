@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, Trash2, RefreshCw, KeyRound } from 'lucide-react'
+import { Plus, Search, Pencil, Trash2, RefreshCw, KeyRound, BarChart2 } from 'lucide-react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/Button'
 import { Input, Select } from '@/components/ui/Input'
@@ -214,6 +215,14 @@ export default function AdminUsersPage() {
                     </td>
                     <td>
                       <div className="flex items-center gap-2">
+                        {u.role === 'student' && (
+                          <Link href={`/admin/students/${u.id}`}
+                            className="p-1.5 rounded-lg transition-colors"
+                            title="View Progress"
+                            style={{ color: '#22c55e', background: 'rgba(34,197,94,0.1)', display: 'flex' }}>
+                            <BarChart2 size={13} />
+                          </Link>
+                        )}
                         <button
                           onClick={() => { setEditUser(u); reset({ full_name: u.full_name, role: u.role }) }}
                           className="p-1.5 rounded-lg transition-colors"
@@ -223,14 +232,14 @@ export default function AdminUsersPage() {
                         </button>
                         <button
                           onClick={() => { setResetUser(u); setNewPwd('') }}
-                            className="p-1.5 rounded-lg transition-colors"
-                            title="Reset password"
-                            style={{ color: 'var(--accent-orange)', background: 'rgba(245,158,11,0.1)' }}
-                          >
-                            <KeyRound size={13} />
-                          </button>
-                          <button
-                            onClick={() => setDeleteUser(u)}
+                          className="p-1.5 rounded-lg transition-colors"
+                          title="Reset password"
+                          style={{ color: 'var(--accent-orange)', background: 'rgba(245,158,11,0.1)' }}
+                        >
+                          <KeyRound size={13} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteUser(u)}
                           className="p-1.5 rounded-lg transition-colors"
                           style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}
                         >

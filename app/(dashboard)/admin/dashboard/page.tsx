@@ -9,7 +9,7 @@ async function getAdminStats(supabase: any) {
   const [usersRes, classesRes, liveRes, assignRes] = await Promise.all([
     supabase.from('users').select('id, role, created_at', { count: 'exact' }),
     supabase.from('classes').select('id', { count: 'exact' }),
-    supabase.from('live_classes').select('id, title, status, start_time, courses(name)').eq('status', 'live'),
+    supabase.from('live_classes').select('id, title, status, start_time, class_id, classes(class_name, courses(name)))').eq('status', 'live'),
     supabase.from('assignments').select('id', { count: 'exact' }),
   ])
   return {
@@ -78,7 +78,7 @@ export default async function AdminDashboardPage() {
                   <div>
                     <p style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>{cls.title}</p>
                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                      {(cls.courses as any)?.name}
+                      {(cls.classes as any)?.class_name} · {(cls.classes as any)?.courses?.name}
                     </p>
                   </div>
                   <span style={{ padding: '3px 10px', background: 'rgba(34,197,94,0.15)', color: '#22c55e', borderRadius: 100, fontSize: '0.7rem', fontWeight: 700 }}>LIVE</span>
@@ -99,6 +99,10 @@ export default async function AdminDashboardPage() {
                 <span style={{ fontSize: '1.1rem' }}>🪪</span>
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Generate IDs</span>
               </Link>
+              <Link href="/admin/courses"    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 10, textDecoration: 'none' }}>
+                <span style={{ fontSize: '1.1rem' }}>📖</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Manage Courses</span>
+              </Link>
               <Link href="/admin/users"      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 10, textDecoration: 'none' }}>
                 <span style={{ fontSize: '1.1rem' }}>👥</span>
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Manage Users</span>
@@ -107,13 +111,13 @@ export default async function AdminDashboardPage() {
                 <span style={{ fontSize: '1.1rem' }}>📚</span>
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Manage Classes</span>
               </Link>
+              <Link href="/admin/chat-monitor" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 10, textDecoration: 'none' }}>
+                <span style={{ fontSize: '1.1rem' }}>🛡️</span>
+                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Chat Monitor</span>
+              </Link>
               <Link href="/admin/reports"    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 10, textDecoration: 'none' }}>
                 <span style={{ fontSize: '1.1rem' }}>📊</span>
                 <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>View Reports</span>
-              </Link>
-              <Link href="/admin/monitoring" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'var(--bg-hover)', borderRadius: 10, textDecoration: 'none' }}>
-                <span style={{ fontSize: '1.1rem' }}>🔍</span>
-                <span style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-primary)' }}>Monitor Classes</span>
               </Link>
             </div>
           </div>

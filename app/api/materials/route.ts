@@ -1,16 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-// GET  ?courseId=...  or  ?classId=...
+// GET  ?classId=...  — fetch materials for a class (or all for teacher)
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const courseId = request.nextUrl.searchParams.get('courseId')
-    let query = supabase.from('materials').select('id, title, file_url, file_type, course_id, teacher_id, created_at, courses(name)').order('created_at', { ascending: false })
-    if (courseId) query = query.eq('course_id', courseId)
+    const classId = request.nextUrl.searchParams.get('classId')
+    let query = supabase
+      .from('materials')
+      .select('id, title, file_url, file_type, class_id, teacher_id, created_at, classes(class_name, courses(name))')
+      .order('created_at', { ascending: false })
+
+    if (classId) query = query.eq('class_id', classId)
+    else query = query.eq('teacher_id', user.id) // teacher sees only own materials
 
     const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
@@ -20,23 +25,23 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST — save materialrecord after upload
+// POST — save material record after upload (class_id based)
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { title, file_url, file_type, course_id } = await request.json()
-    if (!title || !file_url || !course_id) {
-      return NextResponse.json({ error: 'title, file_url and course_id are required' }, { status: 400 })
+    const { title, file_url, file_type, class_id } = await request.json()
+    if (!title || !file_url || !class_id) {
+      return NextResponse.json({ error: 'title, file_url and class_id are required' }, { status: 400 })
     }
 
     const { data, error } = await supabase.from('materials').insert({
       title,
       file_url,
       file_type: file_type || 'file',
-      course_id,
+      class_id,
       teacher_id: user.id,
     }).select().single()
 

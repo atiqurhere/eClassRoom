@@ -1,113 +1,66 @@
-'use client'
+export const dynamic   = 'force-dynamic'
+export const revalidate = 0
 
-import { useState, useEffect, useCallback } from 'react'
-import { toast } from 'sonner'
-import { createClient } from '@/lib/supabase/client'
-import { SectionCard } from '@/components/ui/Card'
+import { createClient } from '@/lib/supabase/server'
+import { redirect }     from 'next/navigation'
+import Link             from 'next/link'
 
-export default function AdminAssignStudentsPage() {
-  const [students, setStudents] = useState<any[]>([])
-  const [classes, setClasses]   = useState<any[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState<string | null>(null)
-  const [search, setSearch]     = useState('')
-  const supabase = createClient()
+export default async function AdminAssignStudentsPage() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  const fetchData = useCallback(async () => {
-    setLoading(true)
-    const [stuRes, clsRes] = await Promise.all([
-      supabase.from('students').select('id, student_id, class_id, user_id, users(full_name, email)').order('id'),
-      supabase.from('classes').select('id, class_name, section').order('class_name'),
-    ])
-    setStudents((stuRes.data || []) as any[])
-    setClasses((clsRes.data || []) as any[])
-    setLoading(false)
-  }, [])
+  // Get all courses with their enrollment counts
+  const { data: courses } = await supabase
+    .from('courses')
+    .select('id, name, description, course_enrollments(count)')
+    .order('name')
 
-  useEffect(() => { fetchData() }, [fetchData])
-
-  const assignClass = async (studentId: string, classId: string) => {
-    setSaving(studentId)
-    const { error } = await supabase
-      .from('students')
-      .update({ class_id: classId || null })
-      .eq('id', studentId)
-    setSaving(null)
-    if (error) toast.error(error.message)
-    else toast.success('Class assigned')
-  }
-
-  const filtered = students.filter(s => {
-    if (!search) return true
-    const name  = s.users?.full_name?.toLowerCase() || ''
-    const email = s.users?.email?.toLowerCase() || ''
-    const id    = s.student_id?.toLowerCase() || ''
-    return name.includes(search.toLowerCase()) || email.includes(search.toLowerCase()) || id.includes(search.toLowerCase())
-  })
+  const card = 'var(--bg-card)'
+  const bdr  = '1px solid var(--border)'
 
   return (
-    <div className="space-y-5">
-      <div className="page-header">
-        <h1>🎓 Assign Students to Classes</h1>
-        <p>Manage class assignments for each student</p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>🎓 Student Enrollment</h1>
+        <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>
+          Enroll students in courses. Click a course to manage its student list and classes.
+        </p>
       </div>
 
-      <SectionCard
-        title={`Students (${filtered.length})`}
-        scrollable
-        action={
-          <input
-            type="text"
-            placeholder="Search by name, email, ID…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="form-input"
-            style={{ maxWidth: 240, width: '100%', padding: '7px 12px', fontSize: '0.8125rem' }}
-          />
-        }
-      >
-        {loading ? (
-          <p style={{ textAlign: 'center', padding: 32, color: 'var(--text-muted)' }}>Loading…</p>
-        ) : (
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Student ID</th>
-                <th>Email</th>
-                <th>Assigned Class</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={4} style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>No students yet</td></tr>
-              ) : (
-                filtered.map(s => (
-                  <tr key={s.id}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.users?.full_name || 'Unknown'}</td>
-                    <td style={{ fontFamily: 'monospace', color: 'var(--text-muted)' }}>{s.student_id || '—'}</td>
-                    <td style={{ color: 'var(--text-muted)' }}>{s.users?.email || '—'}</td>
-                    <td>
-                      <select
-                        defaultValue={s.class_id || ''}
-                        onChange={e => assignClass(s.id, e.target.value)}
-                        disabled={saving === s.id}
-                        className="form-select"
-                        style={{ padding: '6px 10px', fontSize: '0.8125rem', width: '100%', maxWidth: 200 }}
-                      >
-                        <option value="">— Unassigned —</option>
-                        {classes.map(c => (
-                          <option key={c.id} value={c.id}>{c.class_name}{c.section ? ` (${c.section})` : ''}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        )}
-      </SectionCard>
+      {(courses || []).length === 0 ? (
+        <div style={{ background: card, border: bdr, borderRadius: 14, padding: 48, textAlign: 'center' }}>
+          <p style={{ fontSize: '2rem', marginBottom: 12 }}>📖</p>
+          <p style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>No courses yet</p>
+          <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Create courses first, then enroll students.</p>
+          <Link href="/admin/courses"
+            style={{ display: 'inline-block', padding: '10px 22px', background: 'linear-gradient(135deg,#4f8ef7,#8b5cf6)', color: '#fff', borderRadius: 10, fontWeight: 700, textDecoration: 'none' }}>
+            Go to Courses →
+          </Link>
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px,100%),1fr))', gap: 16 }}>
+          {(courses || []).map((c: any) => {
+            const enrollCount = c.course_enrollments?.[0]?.count ?? 0
+            return (
+              <Link key={c.id} href={`/admin/courses/${c.id}`}
+                style={{ display: 'block', background: card, border: bdr, borderRadius: 14, padding: 20, textDecoration: 'none', transition: 'border-color 0.15s' }}
+                className="hover-card">
+                <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '1rem', marginBottom: 6 }}>📖 {c.name}</p>
+                {c.description && <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginBottom: 12 }}>{c.description}</p>}
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <span style={{ fontSize: '0.75rem', padding: '3px 10px', background: 'rgba(79,142,247,0.1)', color: '#4f8ef7', borderRadius: 6, fontWeight: 600 }}>
+                    👥 {enrollCount} student{enrollCount !== 1 ? 's' : ''}
+                  </span>
+                  <span style={{ fontSize: '0.75rem', padding: '3px 10px', background: 'rgba(139,92,246,0.1)', color: '#8b5cf6', borderRadius: 6, fontWeight: 600 }}>
+                    Manage →
+                  </span>
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

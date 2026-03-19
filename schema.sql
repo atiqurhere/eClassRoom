@@ -12,11 +12,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- ──────────────────────────────────────────────────────────────
--- SECURITY HELPER
--- ──────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS
-$$ SELECT role FROM public.users WHERE id = auth.uid()::uuid; $$;
+-- NOTE: get_my_role() is defined AFTER users table below (ordering fix)
 
 -- ──────────────────────────────────────────────────────────────
 -- 1. USERS
@@ -40,6 +36,13 @@ CREATE POLICY "Trigger can insert users"     ON public.users FOR INSERT WITH CHE
 CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql;
 CREATE TRIGGER users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+-- ──────────────────────────────────────────────────────────────
+-- SECURITY HELPER (defined after users table so relation exists)
+-- ──────────────────────────────────────────────────────────────
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS
+$$ SELECT role FROM public.users WHERE id = auth.uid()::uuid; $$;
 
 -- ──────────────────────────────────────────────────────────────
 -- 2. COURSES (top-level container — admin creates)

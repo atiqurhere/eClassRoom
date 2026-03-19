@@ -15,8 +15,10 @@ interface ClassRecord {
   class_name: string
   section: string
   academic_year: string
+  course_id: string
   teacher_id: string
   users?: { full_name: string } | null
+  courses?: { name: string } | null
 }
 
 export default function AdminClassesPage() {
@@ -30,17 +32,20 @@ export default function AdminClassesPage() {
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const [form, setForm] = useState({ class_name: '', section: '', academic_year: '', teacher_id: '' })
+  const [courses, setCourses] = useState<{ id: string; name: string }[]>([])
+  const [form, setForm] = useState({ class_name: '', section: '', academic_year: '', teacher_id: '', course_id: '' })
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     const supabase = createClient()
-    const [classRes, teacherRes] = await Promise.all([
+    const [classRes, teacherRes, courseRes] = await Promise.all([
       fetch('/api/admin/classes').then(r => r.json()),
       supabase.from('users').select('id, full_name').eq('role', 'teacher'),
+      supabase.from('courses').select('id, name').order('name'),
     ])
     setClasses(classRes.classes || [])
     setTeachers(teacherRes.data || [])
+    setCourses(courseRes.data || [])
     setLoading(false)
   }, [])
 
@@ -51,12 +56,12 @@ export default function AdminClassesPage() {
   )
 
   const openCreate = () => {
-    setForm({ class_name: '', section: '', academic_year: '', teacher_id: '' })
+    setForm({ class_name: '', section: '', academic_year: '', teacher_id: '', course_id: '' })
     setEditItem(null)
     setShowModal(true)
   }
   const openEdit = (cls: ClassRecord) => {
-    setForm({ class_name: cls.class_name, section: cls.section || '', academic_year: cls.academic_year || '', teacher_id: cls.teacher_id || '' })
+    setForm({ class_name: cls.class_name, section: cls.section || '', academic_year: cls.academic_year || '', teacher_id: cls.teacher_id || '', course_id: cls.course_id || '' })
     setEditItem(cls)
     setShowModal(true)
   }
@@ -132,13 +137,13 @@ export default function AdminClassesPage() {
       >
         <table className="data-table">
           <thead>
-            <tr><th>Class Name</th><th>Section</th><th>Academic Year</th><th>Teacher</th><th>Actions</th></tr>
+            <tr><th>Class Name</th><th>Course</th><th>Section</th><th>Academic Year</th><th>Teacher</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => <SkeletonRow key={i} />)
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No classes yet — click &quot;New Class&quot; to create one.</td></tr>
+              <tr><td colSpan={6} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>No classes yet — click &quot;New Class&quot; to create one.</td></tr>
             ) : (
               filtered.map(cls => (
                 <tr key={cls.id}>
@@ -150,6 +155,7 @@ export default function AdminClassesPage() {
                       <span className="font-medium" style={{ color: 'var(--text-primary)' }}>{cls.class_name}</span>
                     </div>
                   </td>
+                  <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{(cls.courses as any)?.name || '—'}</td>
                   <td>{cls.section || '—'}</td>
                   <td>{cls.academic_year || '—'}</td>
                   <td>
@@ -180,6 +186,13 @@ export default function AdminClassesPage() {
           </>
         }>
         <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Belongs to Course *</label>
+            <select value={form.course_id} onChange={e => setForm(p => ({ ...p, course_id: e.target.value }))} required style={inp}>
+              <option value="">Select course…</option>
+              {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
           <div>
             <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Class Name *</label>
             <input value={form.class_name} onChange={e => setForm(p => ({ ...p, class_name: e.target.value }))} required placeholder="e.g. Class 10A" style={inp} />

@@ -131,7 +131,7 @@ export default function StudentClassesPage() {
                 ) : (
                   <div className="space-y-2">
                     {materials.map(m => (
-                      <a key={m.id} href={m.file_url} target="_blank" rel="noreferrer"
+                      <Link key={m.id} href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}`}
                         className="flex items-center justify-between p-3 rounded-lg transition-all"
                         style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-3">

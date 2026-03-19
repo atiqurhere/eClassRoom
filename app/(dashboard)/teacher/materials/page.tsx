@@ -7,6 +7,7 @@ import { SectionCard } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { SkeletonRow } from '@/components/ui/Loading'
 import { FileText, Upload, Trash2, ExternalLink, Search, RefreshCw, File, FileType, FileVideo } from 'lucide-react'
+import Link from 'next/link'
 
 /** Strip characters that cause Supabase Storage 400 errors (brackets, spaces, etc.) */
 function sanitizeFilename(name: string): string {
@@ -218,9 +219,9 @@ export default function TeacherMaterialsPage() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <a href={m.file_url} target="_blank" rel="noopener noreferrer">
+                        <Link href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}`}>
                           <Button variant="ghost" size="sm" leftIcon={<ExternalLink size={12} />}>View</Button>
-                        </a>
+                        </Link>
                         <Button variant="ghost" size="sm" leftIcon={<Trash2 size={12} />}
                           style={{ color: 'var(--accent-red)' }} onClick={() => handleDelete(m.id)}>
                           Delete

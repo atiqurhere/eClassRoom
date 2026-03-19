@@ -23,14 +23,15 @@ export async function POST(request: NextRequest) {
     const { data: role } = await supabase.rpc('get_my_role')
     if (role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { class_id, course_id, day, start_time, end_time } = await request.json()
-    if (!class_id || !course_id || !day || !start_time || !end_time) {
-      return NextResponse.json({ error: 'All fields required' }, { status: 400 })
+    // v2: schedules has no course_id column — only class_id
+    const { class_id, day, start_time, end_time } = await request.json()
+    if (!class_id || !day || !start_time || !end_time) {
+      return NextResponse.json({ error: 'class_id, day, start_time and end_time are required' }, { status: 400 })
     }
 
     const { createClient: createAdmin } = await import('@supabase/supabase-js')
     const adminClient = createAdmin(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!)
-    const { data, error } = await adminClient.from('schedules').insert({ class_id, course_id, day, start_time, end_time }).select().single()
+    const { data, error } = await adminClient.from('schedules').insert({ class_id, day, start_time, end_time }).select().single()
     if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ schedule: data })
   } catch { return NextResponse.json({ error: 'Internal server error' }, { status: 500 }) }

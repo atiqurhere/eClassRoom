@@ -1,262 +1,207 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'next/navigation'
-import { Video, Play, StopCircle, Link as LinkIcon, CalendarDays } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/lib/hooks/useAuth'
-import { JitsiMeeting } from '@/components/live-class/JitsiMeeting'
-import { Button } from '@/components/ui/Button'
-import { SectionCard } from '@/components/ui/Card'
-import { StatusBadge } from '@/components/ui/Badge'
-import { toast } from 'sonner'
-import { SkeletonRow } from '@/components/ui/Loading'
+import { Video, Play, Square, ExternalLink, RefreshCw, Clock, Users } from 'lucide-react'
+import { createClient }  from '@/lib/supabase/client'
+import { useAuth }       from '@/lib/hooks/useAuth'
+import { Button }        from '@/components/ui/Button'
+import { SectionCard }   from '@/components/ui/Card'
+import { SkeletonRow }   from '@/components/ui/Loading'
+import { toast }         from 'sonner'
 
 export default function TeacherLiveClassPage() {
-  const { user } = useAuth()
-  const params = useSearchParams()
-
-  const [myClasses, setMyClasses]       = useState<any[]>([])
-  const [selectedClass, setSelectedClass] = useState(params.get('classId') || '')
-  const [activeClass, setActiveClass]   = useState<any>(null)
-  const [pastClasses, setPastClasses]   = useState<any[]>([])
+  const { user }          = useAuth()
+  const [classes, setClasses]           = useState<any[]>([])
+  const [sessions, setSessions]         = useState<any[]>([])
   const [loading, setLoading]           = useState(true)
-  const [starting, setStarting]         = useState(false)
-  const [inlineUrl, setInlineUrl]       = useState<Record<string, string>>({})
-  const [savingRecId, setSavingRecId]   = useState<string | null>(null)
-  const [endedClass, setEndedClass]     = useState<any>(null)
-  const [recordingUrl, setRecordingUrl] = useState('')
+  const [starting, setStarting]         = useState<string | null>(null)
+  const [ending, setEnding]             = useState<string | null>(null)
 
-  const supabase = createClient()
-
-  const fetchMyClasses = useCallback(async () => {
-    if (!user) return
-    const { data } = await supabase
-      .from('classes')
-      .select('id, class_name, section, course_id, courses(name)')
-      .eq('teacher_id', user.id)
-      .order('class_name')
-    setMyClasses(data || [])
-  }, [user])
-
-  const fetchSessions = useCallback(async () => {
+  const fetchData = useCallback(async () => {
     if (!user) return
     setLoading(true)
-    const { data } = await supabase
-      .from('live_classes')
-      .select('id, title, status, start_time, end_time, recording_url, class_id, classes(class_name, courses(name))')
-      .eq('teacher_id', user.id)
-      .order('start_time', { ascending: false })
-      .limit(10)
-    setPastClasses(data || [])
-    const live = (data || []).find((c: any) => c.status === 'live')
-    if (live) setActiveClass(live)
+    const supabase = createClient()
+    const [clsRes, sesRes] = await Promise.all([
+      supabase
+        .from('classes')
+        .select('id, class_name, section, courses(name)')
+        .eq('teacher_id', user.id)
+        .order('class_name'),
+      supabase
+        .from('live_classes')
+        .select('id, title, status, room_id, start_time, class_id, classes(class_name, courses(name))')
+        .eq('teacher_id', user.id)
+        .order('start_time', { ascending: false })
+        .limit(20),
+    ])
+    setClasses(clsRes.data || [])
+    setSessions(sesRes.data || [])
     setLoading(false)
   }, [user])
 
-  useEffect(() => { fetchMyClasses(); fetchSessions() }, [fetchMyClasses, fetchSessions])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  const startClass = async () => {
-    if (!selectedClass) { toast.error('Please select a class first'); return }
-    const cls = myClasses.find(c => c.id === selectedClass)
-    setStarting(true)
+  const startSession = async (classId: string, className: string) => {
+    if (!user) return
+    setStarting(classId)
     try {
-      const res = await fetch('/api/live-class/start', {
+      const res  = await fetch('/api/live-class/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          classId: selectedClass,
-          title: `${cls?.class_name}${cls?.section ? ` (${cls.section})` : ''} — Live Session`,
-        }),
+        body: JSON.stringify({ classId }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setActiveClass(data.liveClass)
-      toast.success('Live class started!')
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to start')
+
+      // Open Jitsi meeting in new tab
+      const roomId = json.liveClass?.room_id
+      if (roomId) {
+        window.open(`https://meet.jit.si/${roomId}`, '_blank')
+      }
+      toast.success(`Live session started for ${className}`)
+      fetchData()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to start class')
+      toast.error(err.message || 'Failed to start live class')
     } finally {
-      setStarting(false)
+      setStarting(null)
     }
   }
 
-  const endClass = async () => {
-    if (!activeClass) return
-    setStarting(true)
+  const endSession = async (sessionId: string) => {
+    setEnding(sessionId)
     try {
-      const res = await fetch('/api/live-class/end', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ liveClassId: activeClass.id }),
+      const res  = await fetch('/api/live-class/end', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ liveClassId: sessionId }),
       })
-      if (!res.ok) throw new Error('Failed to end class')
-      setEndedClass(activeClass)
-      setActiveClass(null)
-      setRecordingUrl('')
-      toast.success('Class ended! Add your recording link below.')
-      fetchSessions()
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Failed to end')
+      toast.success('Session ended')
+      fetchData()
     } catch (err: any) {
-      toast.error(err.message)
+      toast.error(err.message || 'Failed to end session')
     } finally {
-      setStarting(false)
+      setEnding(null)
     }
   }
 
-  const saveRecording = async (liveClassId: string, url: string) => {
-    if (!url.trim()) { toast.error('Enter a recording URL'); return }
-    setSavingRecId(liveClassId)
-    await fetch('/api/live-class/recording', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ liveClassId, recordingUrl: url }),
-    })
-    setSavingRecId(null)
-    setInlineUrl(p => ({ ...p, [liveClassId]: '' }))
-    if (endedClass?.id === liveClassId) setEndedClass(null)
-    toast.success('Recording saved')
-    fetchSessions()
+  const rejoinSession = (session: any) => {
+    if (session.room_id) {
+      window.open(`https://meet.jit.si/${session.room_id}`, '_blank')
+    }
   }
+
+  const live    = sessions.filter(s => s.status === 'live')
+  const ended   = sessions.filter(s => s.status !== 'live')
 
   return (
     <div className="space-y-6">
-      <div className="page-header">
-        <h1>Live Class</h1>
-        <p>Start live video sessions for your classes</p>
+      <div className="page-header flex items-center justify-between">
+        <div>
+          <h1>Live Classes</h1>
+          <p>Start and manage your live class sessions</p>
+        </div>
+        <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchData}>Refresh</Button>
       </div>
 
-      <div className="dash-grid-sidebar" style={{ alignItems: 'start' }}>
-        {/* Main Area: Active Class or Start Form */}
-        <div>
-          {activeClass ? (
-            <div style={{ background: '#000', borderRadius: 16, overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.2)' }}>
-              <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-card)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--text-primary)' }}>LIVE</span>
-                  </div>
-                  <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{activeClass.title}</span>
-                </div>
-                <Button variant="danger" size="sm" leftIcon={<StopCircle size={14} />} onClick={endClass} loading={starting}>
-                  End Class
-                </Button>
-              </div>
-              <div style={{ height: '70vh', minHeight: 500 }}>
-                {user && (
-                  <JitsiMeeting
-                    roomName={activeClass.room_id}
-                    userName={user.email || 'Teacher'}
-                    userEmail={user.email || ''}
-                    isModerator={true}
-                  />
-                )}
-              </div>
-            </div>
+      {/* How it works note */}
+      <div style={{ padding: '12px 16px', background: 'rgba(79,142,247,0.08)', borderRadius: 10, border: '1px solid rgba(79,142,247,0.2)', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+        📌 Clicking <b>Start Session</b> creates a live class and opens the Jitsi meeting room in a <b>new tab</b>. Share the room link with your students from their dashboard.
+      </div>
+
+      <div className="dash-grid-main">
+        {/* My Classes → Start session */}
+        <SectionCard title="My Classes" icon={<Video size={15} style={{ color: 'var(--accent-blue)' }} />}>
+          {loading ? (
+            <table className="data-table"><tbody>{[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
+          ) : classes.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No classes assigned to you.</p>
           ) : (
-            <SectionCard title="Start a Session" icon={<Video size={15} style={{ color: 'var(--accent-blue)' }} />}>
-              <div style={{ padding: '20px', textAlign: 'center' }}>
-                <div style={{ width: 64, height: 64, borderRadius: 20, background: 'rgba(79, 142, 247, 0.1)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
-                  <Video size={30} />
-                </div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Ready to start teaching?</h3>
-                <p style={{ color: 'var(--text-muted)', marginBottom: 24, fontSize: '0.875rem', maxWidth: 300, margin: '0 auto 24px' }}>
-                  Select a class below to generate a secure meeting link and start your live session instantly.
-                </p>
-                
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, background: 'var(--bg-hover)', padding: '8px', borderRadius: 12 }}>
-                  <select 
-                    value={selectedClass} 
-                    onChange={e => setSelectedClass(e.target.value)}
-                    className="form-input"
-                    style={{ border: 'none', background: 'var(--bg-card)', minWidth: 200, padding: '10px 14px' }}
-                  >
-                    <option value="">Select class…</option>
-                    {myClasses.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.class_name}{c.section ? ` (${c.section})` : ''} - {(c.courses as any)?.name}
-                      </option>
-                    ))}
-                  </select>
-                  <Button variant="gradient" size="md" leftIcon={<Play size={16} />} onClick={startClass} loading={starting} disabled={!selectedClass}>
-                    Start Class
-                  </Button>
-                </div>
-              </div>
+            <table className="data-table">
+              <thead><tr><th>Class</th><th>Course</th><th style={{ textAlign: 'right' }}>Action</th></tr></thead>
+              <tbody>
+                {classes.map(cls => {
+                  const hasActiveLive = live.some(s => s.class_id === cls.id)
+                  const activeSession = live.find(s => s.class_id === cls.id)
+                  return (
+                    <tr key={cls.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {cls.class_name}{cls.section ? ` (${cls.section})` : ''}
+                      </td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(cls.courses as any)?.name}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {hasActiveLive ? (
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />}
+                              onClick={() => rejoinSession(activeSession)}>Re-join</Button>
+                            <Button variant="danger" size="sm" leftIcon={<Square size={13} />}
+                              loading={ending === activeSession?.id}
+                              onClick={() => endSession(activeSession.id)}>End</Button>
+                          </div>
+                        ) : (
+                          <Button variant="gradient" size="sm" leftIcon={<Play size={13} fill="white" />}
+                            loading={starting === cls.id}
+                            onClick={() => startSession(cls.id, cls.class_name)}>
+                            Start Session
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </SectionCard>
+
+        {/* Session History */}
+        <div className="space-y-5">
+          {/* Active sessions */}
+          {live.length > 0 && (
+            <SectionCard title={`🔴 Live Now (${live.length})`} icon={<Video size={15} style={{ color: 'var(--accent-green)' }} />}>
+              <table className="data-table">
+                <thead><tr><th>Session</th><th>Class</th><th style={{ textAlign: 'right' }}>Action</th></tr></thead>
+                <tbody>
+                  {live.map(s => (
+                    <tr key={s.id}>
+                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.title}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(s.classes as any)?.class_name}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                          <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />} onClick={() => rejoinSession(s)}>Open</Button>
+                          <Button variant="danger" size="sm" leftIcon={<Square size={13} />} loading={ending === s.id} onClick={() => endSession(s.id)}>End</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </SectionCard>
           )}
 
-          {/* Prompt to add recording after class ends */}
-          {endedClass && !activeClass && (
-            <div style={{ marginTop: 20, padding: 20, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 16 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'var(--accent-green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Video size={16} /></div>
-                <div>
-                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Class Ended Successfully</h3>
-                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Paste the recording link (e.g., YouTube, Google Drive) so students can watch later.</p>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <input 
-                  type="url" 
-                  placeholder="https://..." 
-                  value={recordingUrl} 
-                  onChange={e => setRecordingUrl(e.target.value)} 
-                  className="form-input flex-1"
-                />
-                <Button variant="primary" onClick={() => saveRecording(endedClass.id, recordingUrl)} loading={savingRecId === endedClass.id}>
-                  Save Link
-                </Button>
-                <Button variant="ghost" onClick={() => setEndedClass(null)}>Skip</Button>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Sidebar: Past Sessions */}
-        <div>
-          <SectionCard title="Recent Sessions" icon={<CalendarDays size={15} style={{ color: 'var(--accent-purple)' }} />}>
+          {/* Past sessions */}
+          <SectionCard title="Past Sessions" icon={<Clock size={15} style={{ color: 'var(--accent-muted)' }} />} scrollable>
             {loading ? (
-              <table className="data-table"><tbody>{[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
-            ) : pastClasses.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions.</p>
+              <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
+            ) : ended.length === 0 ? (
+              <p style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions yet.</p>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {pastClasses.filter(c => c.status !== 'live').map(c => (
-                  <div key={c.id} style={{ padding: '16px', borderBottom: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <div>
-                        <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{(c.classes as any)?.class_name}</p>
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                          {new Date(c.start_time).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <StatusBadge status="ended" />
-                    </div>
-                    
-                    {c.recording_url ? (
-                      <a href={c.recording_url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.8125rem', color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 500, background: 'rgba(79, 142, 247, 0.1)', padding: '6px 10px', borderRadius: 6 }}>
-                        <LinkIcon size={12} /> Watch Recording
-                      </a>
-                    ) : (
-                      <div style={{ marginTop: 8 }}>
-                        {inlineUrl[c.id] !== undefined ? (
-                          <div style={{ display: 'flex', gap: 8 }}>
-                            <input 
-                              type="url" placeholder="Recording URL" 
-                              value={inlineUrl[c.id]} 
-                              onChange={e => setInlineUrl(p => ({ ...p, [c.id]: e.target.value }))}
-                              className="form-input" style={{ width: '100%', padding: '6px 10px', fontSize: '0.8125rem' }} 
-                            />
-                            <Button variant="secondary" size="sm" onClick={() => saveRecording(c.id, inlineUrl[c.id])} loading={savingRecId === c.id}>Save</Button>
-                          </div>
-                        ) : (
-                          <button onClick={() => setInlineUrl(p => ({ ...p, [c.id]: '' }))} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                            + Add Recording Link
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
+              <table className="data-table">
+                <thead><tr><th>Session</th><th>Class</th><th>Date</th><th style={{ textAlign: 'right' }}>Status</th></tr></thead>
+                <tbody>
+                  {ended.map(s => (
+                    <tr key={s.id}>
+                      <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.title}</td>
+                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(s.classes as any)?.class_name}</td>
+                      <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-hover)', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.status}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </SectionCard>
         </div>

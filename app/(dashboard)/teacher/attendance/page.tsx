@@ -14,11 +14,11 @@ export default function TeacherAttendancePage() {
   const [attendances, setAttendances]         = useState<any[]>([])
   const [loadingSessions, setLoadingSessions] = useState(true)
   const [loadingAttendance, setLoadingAttendance]= useState(false)
-  const supabase = createClient()
 
   // Fetch this teacher's ended live sessions (with class + course info)
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true)
+    const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
     const { data } = await supabase
@@ -36,16 +36,17 @@ export default function TeacherAttendancePage() {
 
   const fetchAttendance = useCallback(async (sessionId: string) => {
     setLoadingAttendance(true)
-    const session   = sessions.find(s => s.id === sessionId)
-    const courseId  = (session?.classes as any)?.course_id
+    const supabase   = createClient()
+    const session    = sessions.find(s => s.id === sessionId)
+    const courseId   = (session?.classes as any)?.course_id
 
     if (!courseId) { setAttendances([]); setLoadingAttendance(false); return }
 
-    // In v2: students are enrolled in courses via course_enrollments
+    // 1. Get enrolled student IDs for this course
     const [enrollRes, recordRes] = await Promise.all([
       supabase
         .from('course_enrollments')
-        .select('student_id, users!course_enrollments_student_id_fkey(id, full_name)')
+        .select('student_id')
         .eq('course_id', courseId),
       supabase
         .from('attendance')
@@ -53,21 +54,33 @@ export default function TeacherAttendancePage() {
         .eq('live_class_id', sessionId),
     ])
 
+    const studentIds = (enrollRes.data || []).map((e: any) => e.student_id)
+
+    // 2. Fetch user names separately (avoids RLS on complex FK joins)
+    const userRes = studentIds.length
+      ? await supabase.from('users').select('id, full_name').in('id', studentIds)
+      : { data: [] }
+
+    const userMap: Record<string, string> = {}
+    ;(userRes.data || []).forEach((u: any) => { userMap[u.id] = u.full_name })
+
     const recordMap: Record<string, any> = {}
     ;(recordRes.data || []).forEach((r: any) => { recordMap[r.student_id] = r })
 
-    const combined = (enrollRes.data || []).map((e: any) => ({
-      student_id:  e.student_id,
-      full_name:   e.users?.full_name || 'Unknown',
-      attendance:  recordMap[e.student_id] || null,
+    const combined = studentIds.map((sid: string) => ({
+      student_id: sid,
+      full_name:  userMap[sid] || sid.slice(0, 8) + '…',
+      attendance: recordMap[sid] || null,
     }))
     setAttendances(combined)
     setLoadingAttendance(false)
   }, [sessions])
 
+
   useEffect(() => { if (selectedSession) fetchAttendance(selectedSession) }, [selectedSession, fetchAttendance])
 
   const toggleAttendance = async (studentId: string, currentRecord: any) => {
+    const supabase  = createClient()
     const newStatus = currentRecord?.status === 'present' ? 'absent' : 'present'
     if (currentRecord) {
       await supabase.from('attendance').update({ status: newStatus }).eq('id', currentRecord.id)

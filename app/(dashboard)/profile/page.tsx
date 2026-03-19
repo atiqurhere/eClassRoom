@@ -57,7 +57,7 @@ export default function ProfilePage() {
         setAccountId(profile.student_id)
       } else if (profile.role === 'teacher') {
         const { data } = await supabase
-          .from('teacher_invites').select('teacher_code').eq('user_id', user.id).single()
+          .from('teacher_invites').select('teacher_code').eq('user_id', user.id).maybeSingle()
         setAccountId(data?.teacher_code ?? null)
       }
     }

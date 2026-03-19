@@ -25,12 +25,28 @@ export async function POST(request: NextRequest) {
       // Non-fatal: user account was already created, log and continue
     }
 
-    // v2: no students table. Set student_id on public.users and ensure user role is correct
+    // v2: Set student_id on public.users and ensure role is correct
     if (type === 'student') {
       await supabase
         .from('users')
         .update({ student_id: code, role: 'student' })
         .eq('id', userId)
+
+      // Auto-enroll student in their assigned course (trigger can't do this — fires before claim)
+      const { data: invite } = await supabase
+        .from('student_invites')
+        .select('course_id')
+        .eq('student_code', code)
+        .single()
+
+      if (invite?.course_id) {
+        await supabase
+          .from('course_enrollments')
+          .upsert(
+            { course_id: invite.course_id, student_id: userId, enrolled_by: null },
+            { onConflict: 'course_id,student_id' }
+          )
+      }
     } else if (type === 'teacher') {
       await supabase
         .from('users')

@@ -351,9 +351,9 @@ CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DES
 CREATE OR REPLACE FUNCTION public.validate_student_code(p_code text)
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
   SELECT CASE
-    WHEN si.id IS NULL      THEN jsonb_build_object('valid', false, 'message', 'Invalid Student ID.')
+    WHEN si.id IS NULL          THEN jsonb_build_object('valid', false, 'message', 'Invalid Student ID.')
     WHEN si.user_id IS NOT NULL THEN jsonb_build_object('valid', false, 'message', 'This Student ID has already been used.')
-    ELSE jsonb_build_object('valid', true, 'name', si.full_name, 'course_ids', si.course_ids, 'shift', si.shift)
+    ELSE jsonb_build_object('valid', true, 'name', si.full_name, 'course_id', si.course_id, 'shift', si.shift)
   END
   FROM (SELECT * FROM public.student_invites WHERE student_code = p_code) si
   RIGHT JOIN (SELECT 1) dummy ON true LIMIT 1;
@@ -377,7 +377,7 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 DECLARE
   v_role      text;
-  v_course_ids uuid[];
+  v_course_id uuid;
 BEGIN
   v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'student');
 
@@ -388,15 +388,17 @@ BEGIN
     v_role
   ) ON CONFLICT (id) DO NOTHING;
 
-  -- If student, auto-enroll in courses from invite
+  -- If student, auto-enroll in the course from their invite (matched by student_code)
   IF v_role = 'student' THEN
-    SELECT course_ids INTO v_course_ids
+    -- Look up the invite that was claimed for this user (user_id was set during claim)
+    SELECT course_id INTO v_course_id
     FROM public.student_invites
-    WHERE user_id = NEW.id;
+    WHERE user_id = NEW.id
+    LIMIT 1;
 
-    IF v_course_ids IS NOT NULL AND array_length(v_course_ids, 1) > 0 THEN
+    IF v_course_id IS NOT NULL THEN
       INSERT INTO public.course_enrollments (course_id, student_id, enrolled_by)
-      SELECT unnest(v_course_ids), NEW.id, NULL
+      VALUES (v_course_id, NEW.id, NULL)
       ON CONFLICT (course_id, student_id) DO NOTHING;
     END IF;
   END IF;

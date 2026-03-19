@@ -32,10 +32,12 @@ export default function TeacherClassesPage() {
     if (!user) return
     setLoading(true)
     const supabase = createClient()
+    // v2: teachers are assigned to classes, not courses
     const { data } = await supabase
-      .from('courses')
-      .select('id, name, description, class_id, classes(class_name)')
+      .from('classes')
+      .select('id, class_name, section, course_id, courses(id, name)')
       .eq('teacher_id', user.id)
+      .order('class_name')
     setCourses(data || [])
     if (data?.length && !selectedCourse) setSelectedCourse(data[0])
     setLoading(false)
@@ -44,7 +46,7 @@ export default function TeacherClassesPage() {
   const fetchMaterials = useCallback(async () => {
     if (!selectedCourse) return
     const supabase = createClient()
-    const { data } = await supabase.from('materials').select('*').eq('course_id', selectedCourse.id).order('created_at', { ascending: false })
+    const { data } = await supabase.from('materials').select('*').eq('class_id', selectedCourse.id).order('created_at', { ascending: false })
     setMaterials(data || [])
   }, [selectedCourse])
 
@@ -56,7 +58,7 @@ export default function TeacherClassesPage() {
     try {
       setSaving(true)
       const supabase = createClient()
-      const { error } = await supabase.from('materials').insert({ ...data, course_id: selectedCourse.id, teacher_id: user.id })
+      const { error } = await supabase.from('materials').insert({ ...data, class_id: selectedCourse.id, teacher_id: user.id })
       if (error) throw error
       toast.success('Material added')
       setShowMaterialModal(false)
@@ -137,8 +139,8 @@ export default function TeacherClassesPage() {
                       border: selectedCourse?.id === c.id ? '1px solid rgba(79,142,247,0.3)' : '1px solid transparent',
                       color: selectedCourse?.id === c.id ? 'var(--accent-blue)' : 'var(--text-secondary)',
                     }}>
-                    <p className="text-sm font-semibold">{c.name}</p>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{c.classes?.class_name}</p>
+                    <p className="text-sm font-semibold">{(c as any).class_name}</p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{(c as any).courses?.name}</p>
                   </button>
                 ))}
               </div>
@@ -157,14 +159,14 @@ export default function TeacherClassesPage() {
           ) : (
             <div className="space-y-5">
               {/* Course header */}
-              <div className="p-5 rounded-xl" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
-                <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{selectedCourse.name}</h2>
-                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{selectedCourse.classes?.class_name}</p>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
+                <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>{selectedCourse.class_name}</h2>
+                <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{selectedCourse.courses?.name}{selectedCourse.section ? ` · ${selectedCourse.section}` : ''}</p>
                 <div className="flex gap-2 mt-3">
-                  <Link href={`/teacher/live-class?courseId=${selectedCourse.id}`}>
+                  <Link href={`/teacher/live-class?classId=${selectedCourse.id}`}>
                     <Button variant="gradient" size="sm" leftIcon={<Video size={14} />}>Start Live Class</Button>
                   </Link>
-                  <Link href={`/teacher/attendance?courseId=${selectedCourse.id}`}>
+                  <Link href={`/teacher/attendance?classId=${selectedCourse.id}`}>
                     <Button variant="secondary" size="sm">View Attendance</Button>
                   </Link>
                 </div>

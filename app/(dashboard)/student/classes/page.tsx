@@ -132,7 +132,7 @@ export default function StudentClassesPage() {
                 ) : (
                   <div className="space-y-2">
                     {materials.map(m => (
-                      <Link key={m.id} href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}`}
+                      <Link key={m.id} href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}${m.description ? `&description=${encodeURIComponent(m.description)}` : ''}`}
                         className="flex items-center justify-between p-3 rounded-lg transition-all"
                         style={{ background: 'var(--bg-hover)', border: '1px solid var(--border)' }}>
                         <div className="flex items-center gap-3">

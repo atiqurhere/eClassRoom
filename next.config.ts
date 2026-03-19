@@ -40,7 +40,7 @@ const securityHeaders = [
       `media-src 'self' blob: ${JITSI_DOMAIN} *.${JITSI_DOMAIN}`,
       `connect-src 'self' *.supabase.co *.supabase.in wss://*.supabase.co ${JITSI_DOMAIN} *.${JITSI_DOMAIN} wss://${JITSI_DOMAIN} 8x8.vc *.jitsi.net *.youtube.com`,
       // allow Jitsi iframe to render inside our pages
-      `frame-src 'self' ${JITSI_DOMAIN} *.${JITSI_DOMAIN} 8x8.vc *.youtube.com *.youtube-nocookie.com`,
+      `frame-src 'self' ${JITSI_DOMAIN} *.${JITSI_DOMAIN} 8x8.vc *.youtube.com *.youtube-nocookie.com docs.google.com`,
       // worker-src for WebRTC
       "worker-src 'self' blob:",
     ].join('; '),

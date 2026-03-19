@@ -26,7 +26,7 @@ function fileIcon(ft: string) {
 }
 
 interface Material {
-  id: string; title: string; file_url: string; file_type: string
+  id: string; title: string; description?: string; file_url: string; file_type: string
   class_id: string; created_at: string
   classes?: { class_name: string; section?: string; courses?: { name: string } }
 }
@@ -35,7 +35,7 @@ export default function TeacherMaterialsPage() {
   const [materials, setMaterials]     = useState<Material[]>([])
   const [myClasses, setMyClasses]     = useState<{ id: string; class_name: string; section?: string; courses?: { name: string } }[]>([])
   const [loading, setLoading]         = useState(true)
-  const [form, setForm]               = useState({ title: '', class_id: '' })
+  const [form, setForm]               = useState({ title: '', description: '', class_id: '' })
   const [file, setFile]               = useState<File | null>(null)
   const [uploading, setUploading]     = useState(false)
   const [filterClass, setFilterClass] = useState('')
@@ -50,7 +50,7 @@ export default function TeacherMaterialsPage() {
     const [matRes, cRes] = await Promise.all([
       supabase
         .from('materials')
-        .select('id, title, file_url, file_type, class_id, created_at, classes(class_name, section, courses(name))')
+        .select('id, title, description, file_url, file_type, class_id, created_at, classes(class_name, section, courses(name))')
         .eq('teacher_id', user.id)
         .order('created_at', { ascending: false }),
       supabase.from('classes').select('id, class_name, section, courses(name)').eq('teacher_id', user.id).order('class_name'),
@@ -80,17 +80,18 @@ export default function TeacherMaterialsPage() {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'file'
 
     const { error: dbErr } = await supabase.from('materials').insert({
-      title: form.title.trim(),
-      file_url: urlData.publicUrl,
-      file_type: ext,
-      class_id: form.class_id,
-      teacher_id: user!.id,
+      title:       form.title.trim(),
+      description: form.description.trim() || null,
+      file_url:    urlData.publicUrl,
+      file_type:   ext,
+      class_id:    form.class_id,
+      teacher_id:  user!.id,
     })
     setUploading(false)
     if (dbErr) { toast.error('File saved but record failed: ' + dbErr.message); return }
 
     toast.success('Material uploaded!')
-    setForm({ title: '', class_id: '' })
+    setForm({ title: '', description: '', class_id: form.class_id })
     setFile(null)
     if (fileRef.current) fileRef.current.value = ''
     fetchData()
@@ -144,16 +145,24 @@ export default function TeacherMaterialsPage() {
             </div>
 
             <div>
-              <label className="form-label">File * (PDF, PPT, DOCX, MP4…)</label>
+              <label className="form-label">File * (PDF, PPTX, DOCX, images, video, any…)</label>
               <button type="button" onClick={() => fileRef.current?.click()}
                 className="form-input"
                 style={{ textAlign: 'left', cursor: 'pointer', color: file ? 'var(--text-primary)' : 'var(--text-muted)', width: '100%' }}>
                 {file ? `📄 ${file.name}` : '📎 Choose file…'}
               </button>
               <input ref={fileRef} type="file"
-                accept=".pdf,.ppt,.pptx,.doc,.docx,.txt,.zip,.mp4,.webm,.mkv"
+                accept="*"
                 style={{ display: 'none' }}
                 onChange={e => setFile(e.target.files?.[0] || null)} />
+            </div>
+
+            <div>
+              <label className="form-label">Description / Notes <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optional — URLs become clickable links)</span></label>
+              <textarea className="form-input" value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="Add notes, instructions, or paste a URL like https://example.com…"
+                rows={3} style={{ resize: 'vertical', minHeight: 80 }} />
             </div>
 
             <Button type="submit" variant="gradient" loading={uploading} leftIcon={<Upload size={15} />}>
@@ -219,7 +228,7 @@ export default function TeacherMaterialsPage() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                        <Link href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}`}>
+                        <Link href={`/material-viewer?url=${encodeURIComponent(m.file_url)}&title=${encodeURIComponent(m.title)}${m.description ? `&description=${encodeURIComponent(m.description)}` : ''}`}>
                           <Button variant="ghost" size="sm" leftIcon={<ExternalLink size={12} />}>View</Button>
                         </Link>
                         <Button variant="ghost" size="sm" leftIcon={<Trash2 size={12} />}

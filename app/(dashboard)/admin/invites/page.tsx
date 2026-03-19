@@ -14,17 +14,17 @@ export default async function InvitesPage() {
   if (role !== 'admin') redirect(`/${role ?? 'student'}/dashboard`)
 
   // Fetch invite lists
-  const [{ data: studentInvites }, { data: teacherInvites }, { data: classes }] = await Promise.all([
+  const [{ data: studentInvites }, { data: teacherInvites }, { data: courses }] = await Promise.all([
     supabase.from('student_invites').select('*').order('created_at', { ascending: false }),
     supabase.from('teacher_invites').select('*').order('created_at', { ascending: false }),
-    supabase.from('classes').select('id, class_name, section').order('class_name'),
+    supabase.from('courses').select('id, name').order('name'),
   ])
 
   return (
     <InvitesClient
       studentInvites={studentInvites ?? []}
       teacherInvites={teacherInvites ?? []}
-      classes={classes ?? []}
+      courses={courses ?? []}
       adminId={user.id}
     />
   )

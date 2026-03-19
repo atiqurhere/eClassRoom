@@ -13,34 +13,56 @@ import { toast } from 'sonner'
 
 export default function ProfilePage() {
   const { user } = useAuth()
-  const [fullName, setFullName] = useState(user?.full_name || '')
+  const [profile, setProfile]   = useState<any>(null)
+  const [dataLoading, setDataLoading] = useState(true)
+  const [fullName, setFullName] = useState('')
   const [saving, setSaving] = useState(false)
   const [pwdLoading, setPwdLoading] = useState(false)
   const [newPwd, setNewPwd] = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatar_url || '')
+  const [avatarUrl, setAvatarUrl] = useState('')
   const [avatarUploading, setAvatarUploading] = useState(false)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [idCopied, setIdCopied] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Fetch full fresh profile from DB — don’t rely on useAuth initial state which can be null
+  useEffect(() => {
+    if (!user?.id) return
+    const supabase = createClient()
+    const load = async () => {
+      setDataLoading(true)
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, email, role, avatar_url, student_id')
+        .eq('id', user.id)
+        .single()
+      if (data) {
+        setProfile(data)
+        setFullName(data.full_name || '')
+        setAvatarUrl(data.avatar_url || '')
+      }
+      setDataLoading(false)
+    }
+    load()
+  }, [user?.id])
+
   // Fetch the user's invite code from DB (student_code or teacher_code)
   useEffect(() => {
-    if (!user?.id || !user?.role) return
+    if (!user?.id || !profile?.role) return
     const supabase = createClient()
     const fetchId = async () => {
-      if (user.role === 'student') {
-        const { data } = await supabase
-          .from('student_invites').select('student_code').eq('user_id', user.id).single()
-        setAccountId(data?.student_code ?? null)
-      } else if (user.role === 'teacher') {
+      // In v2 student_id lives directly on users table
+      if (profile.role === 'student' && profile.student_id) {
+        setAccountId(profile.student_id)
+      } else if (profile.role === 'teacher') {
         const { data } = await supabase
           .from('teacher_invites').select('teacher_code').eq('user_id', user.id).single()
         setAccountId(data?.teacher_code ?? null)
       }
     }
     fetchId()
-  }, [user?.id, user?.role])
+  }, [user?.id, profile])
 
   const copyId = () => {
     if (!accountId) return
@@ -107,6 +129,12 @@ export default function ProfilePage() {
     }
   }
 
+  if (dataLoading || !profile) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 200, color: 'var(--text-muted)' }}>
+      Loading profile…
+    </div>
+  )
+
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="page-header"><h1>Profile Settings</h1><p>Manage your account and security</p></div>
@@ -119,7 +147,7 @@ export default function ProfilePage() {
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={avatarUrl} alt="Avatar" className="w-16 h-16 rounded-full object-cover" style={{ border: '2px solid var(--border)' }} />
               ) : (
-                <Avatar name={user?.full_name} size="xl" />
+                <Avatar name={profile.full_name} size="xl" />
               )}
               <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center"
                 style={{ background: 'var(--accent-blue)', color: 'white' }}>
@@ -128,13 +156,13 @@ export default function ProfilePage() {
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
             </div>
             <div>
-              <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{user?.full_name}</p>
-              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{user?.email}</p>
-              <div className="mt-1.5"><RoleBadge role={user?.role || ''} /></div>
+              <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{profile.full_name}</p>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>{profile.email ?? user?.email}</p>
+              <div className="mt-1.5"><RoleBadge role={profile.role || ''} /></div>
             </div>
           </div>
           <Input label="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} />
-          <Input label="Email Address" value={user?.email || ''} disabled hint="Email cannot be changed. Contact your admin." />
+          <Input label="Email Address" value={profile.email ?? user?.email ?? ''} disabled hint="Email cannot be changed. Contact your admin." />
           <div className="flex justify-end">
             <Button variant="primary" loading={saving} leftIcon={<Save size={15} />} onClick={handleSaveProfile}>Save Changes</Button>
           </div>
@@ -142,7 +170,7 @@ export default function ProfilePage() {
       </SectionCard>
 
       {/* Account ID — show for students and teachers */}
-      {(user?.role === 'student' || user?.role === 'teacher') && (
+      {(profile.role === 'student' || profile.role === 'teacher') && (
         <SectionCard title="Account ID" icon={<Hash size={16} style={{ color: 'var(--accent-green)' }} />}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>

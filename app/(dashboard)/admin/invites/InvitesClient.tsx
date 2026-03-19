@@ -6,19 +6,19 @@ import { toast } from 'sonner'
 import { Plus, Copy, CheckCircle, Clock, Users, GraduationCap, Trash2, RefreshCw } from 'lucide-react'
 
 interface StudentInvite {
-  id: string; student_code: string; full_name: string; class_id: string | null
+  id: string; student_code: string; full_name: string; course_id: string | null
   shift: string | null; user_id: string | null; claimed_at: string | null; created_at: string
 }
 interface TeacherInvite {
   id: string; teacher_code: string; full_name: string
   user_id: string | null; claimed_at: string | null; created_at: string
 }
-interface ClassItem { id: string; class_name: string; section: string | null }
+interface CourseItem { id: string; name: string }
 
 interface Props {
   studentInvites: StudentInvite[]
   teacherInvites: TeacherInvite[]
-  classes: ClassItem[]
+  courses: CourseItem[]
   adminId: string
 }
 
@@ -28,7 +28,7 @@ function generateCode(prefix: string) {
   return `${prefix}-${year}-${rand}`
 }
 
-export default function InvitesClient({ studentInvites: initialStudents, teacherInvites: initialTeachers, classes, adminId }: Props) {
+export default function InvitesClient({ studentInvites: initialStudents, teacherInvites: initialTeachers, courses, adminId }: Props) {
   const supabase = createClient()
   const [tab, setTab]               = useState<'students' | 'teachers'>('students')
   const [students, setStudents]     = useState(initialStudents)
@@ -39,9 +39,9 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
   const [copied, setCopied]         = useState<string | null>(null)
 
   // Student form
-  const [sName, setSName]   = useState('')
-  const [sClass, setSClass] = useState('')
-  const [sShift, setSShift] = useState('morning')
+  const [sName, setSName]     = useState('')
+  const [sCourse, setSCourse] = useState('')
+  const [sShift, setSShift]   = useState('morning')
   // Teacher form
   const [tName, setTName] = useState('')
 
@@ -74,11 +74,11 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
       const code = generateCode('LQA')
       const { data, error } = await supabase.from('student_invites').insert({
         student_code: code, full_name: sName.trim(),
-        class_id: sClass || null, shift: sShift, created_by: adminId,
+        course_id: sCourse || null, shift: sShift, created_by: adminId,
       }).select().single()
       if (error) throw error
       setStudents(prev => [data, ...prev])
-      setSName(''); setSClass(''); setSShift('morning')
+      setSName(''); setSCourse(''); setSShift('morning')
       setShowModal(false)
       toast.success(`Student ID generated: ${code}`)
     } catch (err: any) { toast.error(err.message) } finally { setLoading(false) }
@@ -204,7 +204,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                         </div>
                       </td>
                       <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.full_name}</td>
-                      <td>{classes.find(c => c.id === s.class_id)?.class_name ?? '—'}</td>
+                      <td>{courses.find(c => c.id === s.course_id)?.name ?? '—'}</td>
                       <td style={{ textTransform: 'capitalize' }}>{s.shift ?? '—'}</td>
                       <td><span style={badge(!!s.user_id)}>{s.user_id ? 'Claimed' : 'Pending'}</span></td>
                       <td>
@@ -296,11 +296,11 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Class</label>
-                  <select value={sClass} onChange={e => setSClass(e.target.value)}
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: 6 }}>Enrolled Course</label>
+                  <select value={sCourse} onChange={e => setSCourse(e.target.value)}
                     style={{ width: '100%', padding: '10px 12px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.9rem', outline: 'none' }}>
-                    <option value="">— No class assigned —</option>
-                    {classes.map(c => <option key={c.id} value={c.id}>{c.class_name}{c.section ? ` (${c.section})` : ''}</option>)}
+                    <option value="">— No course assigned yet —</option>
+                    {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div>

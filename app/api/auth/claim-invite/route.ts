@@ -25,21 +25,17 @@ export async function POST(request: NextRequest) {
       // Non-fatal: user account was already created, log and continue
     }
 
-    // If student, also link to public.students using existing students table
+    // v2: no students table. Set student_id on public.users and ensure user role is correct
     if (type === 'student') {
-      const { data: invite } = await supabase
-        .from('student_invites')
-        .select('id, class_id')
-        .eq('student_code', code)
-        .single()
-
-      if (invite?.class_id) {
-        await supabase.from('students').upsert({
-          user_id: userId,
-          student_id: code,
-          class_id: invite.class_id,
-        }, { onConflict: 'user_id' })
-      }
+      await supabase
+        .from('users')
+        .update({ student_id: code, role: 'student' })
+        .eq('id', userId)
+    } else if (type === 'teacher') {
+      await supabase
+        .from('users')
+        .update({ role: 'teacher' })
+        .eq('id', userId)
     }
 
     return NextResponse.json({ success: true })

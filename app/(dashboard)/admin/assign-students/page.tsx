@@ -59,10 +59,11 @@ export default function AdminAssignStudentsPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <p style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Students ({filtered.length})</p>
           <input type="text" placeholder="Search by name, email, ID…" value={search} onChange={e => setSearch(e.target.value)}
-            style={{ padding: '7px 12px', background: 'var(--bg-hover)', border: bdr, borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.8125rem', width: 240 }} />
+            style={{ padding: '7px 12px', background: 'var(--bg-hover)', border: bdr, borderRadius: 8, color: 'var(--text-primary)', fontSize: '0.8125rem', maxWidth: 240, width: '100%' }} />
         </div>
         {loading ? <p style={{ textAlign: 'center', padding: 24, color: 'var(--text-muted)' }}>Loading…</p> : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 560 }}>
             <thead><tr style={{ borderBottom: bdr }}>
               {['Student', 'Student ID', 'Email', 'Assigned Class'].map(h => (
                 <th key={h} style={{ textAlign: 'left', padding: '8px', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700 }}>{h}</th>
@@ -89,7 +90,7 @@ export default function AdminAssignStudentsPage() {
                 ))
               )}
             </tbody>
-          </table>
+          </table></div>
         )}
       </div>
     </div>

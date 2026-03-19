@@ -76,7 +76,8 @@ export default async function AdminMonitoringPage() {
       {/* Recent Ended */}
       <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
         <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 14 }}>🕐 Recent Sessions</p>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 640 }}>
           <thead>
             <tr style={{ borderBottom: bdr }}>
               {['Session', 'Teacher', 'Course', 'Date', 'Duration', 'Recording'].map(h => (
@@ -110,7 +111,7 @@ export default async function AdminMonitoringPage() {
               })
             )}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   )

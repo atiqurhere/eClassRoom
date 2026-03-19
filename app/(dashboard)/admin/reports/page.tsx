@@ -64,8 +64,8 @@ export default async function AdminReportsPage() {
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* User breakdown */}
-        <SectionCard title="User Overview" icon={<Users size={16} style={{ color: 'var(--accent-blue)' }} />}>
-          <table className="data-table">
+        <SectionCard title="User Overview" icon={<Users size={16} style={{ color: 'var(--accent-blue)' }} />} scrollable>
+          <table className="data-table" style={{ minWidth: 520 }}>
             <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr></thead>
             <tbody>
               {users.slice(0, 8).map(u => (
@@ -81,8 +81,8 @@ export default async function AdminReportsPage() {
         </SectionCard>
 
         {/* Recent assignments */}
-        <SectionCard title="Recent Assignments" icon={<ClipboardList size={16} style={{ color: 'var(--accent-orange)' }} />}>
-          <table className="data-table">
+        <SectionCard title="Recent Assignments" icon={<ClipboardList size={16} style={{ color: 'var(--accent-orange)' }} />} scrollable>
+          <table className="data-table" style={{ minWidth: 380 }}>
             <thead><tr><th>Title</th><th>Teacher</th><th>Due</th></tr></thead>
             <tbody>
               {!assignRes.data?.length ? (

@@ -35,7 +35,21 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
   const [teachers, setTeachers]         = useState(initialTeachers)
   const [showModal, setShowModal]       = useState(false)
   const [loading, setLoading]           = useState(false)
+  const [refreshing, setRefreshing]     = useState(false)
   const [copied, setCopied]             = useState<string | null>(null)
+
+  const refreshData = async () => {
+    setRefreshing(true)
+    try {
+      const [sRes, tRes] = await Promise.all([
+        supabase.from('student_invites').select('*').order('created_at', { ascending: false }),
+        supabase.from('teacher_invites').select('*').order('created_at', { ascending: false }),
+      ])
+      if (sRes.data) setStudents(sRes.data as StudentInvite[])
+      if (tRes.data) setTeachers(tRes.data as TeacherInvite[])
+    } catch {}
+    setRefreshing(false)
+  }
 
   // Student form
   const [sName, setSName]   = useState('')
@@ -118,6 +132,14 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
         >
           <Plus size={16} /> Generate ID
         </button>
+        <button
+          onClick={refreshData}
+          disabled={refreshing}
+          title="Refresh status"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', background: 'var(--bg-hover)', border: '1px solid var(--border)', color: 'var(--text-secondary)', border: 'none', borderRadius: 10, fontWeight: 600, cursor: 'pointer', fontSize: '0.875rem' }}
+        >
+          <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />
+        </button>
       </div>
 
       {/* Stats */}
@@ -152,7 +174,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
 
       {/* Students Table */}
       {tab === 'students' && (
-        <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+        <div style={{ ...card, padding: 0, borderRadius: 14, overflow: 'hidden' }}>
           {students.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <GraduationCap size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
@@ -160,7 +182,8 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
               <p style={{ fontSize: '0.875rem', marginTop: 4 }}>Generate your first student ID above.</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 560 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['Student ID', 'Name', 'Class', 'Shift', 'Status', ''].map(h => (
@@ -202,7 +225,7 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
 
       {/* Teachers Table */}
       {tab === 'teachers' && (
-        <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
+        <div style={{ ...card, padding: 0, borderRadius: 14, overflow: 'hidden' }}>
           {teachers.length === 0 ? (
             <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
               <Users size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
@@ -210,7 +233,8 @@ export default function InvitesClient({ studentInvites: initialStudents, teacher
               <p style={{ fontSize: '0.875rem', marginTop: 4 }}>Generate your first teacher ID above.</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem', minWidth: 480 }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   {['Teacher ID', 'Name', 'Status', 'Claimed At', ''].map(h => (

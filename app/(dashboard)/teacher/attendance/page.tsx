@@ -3,23 +3,28 @@
 import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
+import { SectionCard } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { SkeletonRow } from '@/components/ui/Loading'
+import { Users, CalendarDays, Clock, CheckCircle, XCircle } from 'lucide-react'
 
 export default function TeacherAttendancePage() {
-  const [sessions, setSessions]             = useState<any[]>([])
+  const [sessions, setSessions]               = useState<any[]>([])
   const [selectedSession, setSelectedSession] = useState<string>('')
-  const [attendances, setAttendances]       = useState<any[]>([])
+  const [attendances, setAttendances]         = useState<any[]>([])
   const [loadingSessions, setLoadingSessions] = useState(true)
-  const [loadingAttendance, setLoadingAttendance] = useState(false)
+  const [loadingAttendance, setLoadingAttendance]= useState(false)
   const supabase = createClient()
 
   // Fetch this teacher's ended live sessions (with class + course info)
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true)
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
     const { data } = await supabase
       .from('live_classes')
       .select('id, title, start_time, class_id, classes(id, class_name, section, course_id, courses(name))')
-      .eq('teacher_id', user!.id)
+      .eq('teacher_id', user.id)
       .eq('status', 'ended')
       .order('start_time', { ascending: false })
       .limit(20)
@@ -31,14 +36,12 @@ export default function TeacherAttendancePage() {
 
   const fetchAttendance = useCallback(async (sessionId: string) => {
     setLoadingAttendance(true)
-    const session = sessions.find(s => s.id === sessionId)
-    const classId   = session?.class_id
+    const session   = sessions.find(s => s.id === sessionId)
     const courseId  = (session?.classes as any)?.course_id
 
-    if (!classId || !courseId) { setAttendances([]); setLoadingAttendance(false); return }
+    if (!courseId) { setAttendances([]); setLoadingAttendance(false); return }
 
     // In v2: students are enrolled in courses via course_enrollments
-    // Get all users enrolled in the course for this class
     const [enrollRes, recordRes] = await Promise.all([
       supabase
         .from('course_enrollments')
@@ -62,90 +65,144 @@ export default function TeacherAttendancePage() {
     setLoadingAttendance(false)
   }, [sessions])
 
-  const markAttendance = async (studentId: string, status: 'present' | 'absent' | 'late') => {
-    const existing = attendances.find(a => a.student_id === studentId)?.attendance
-    if (existing) {
-      await supabase.from('attendance').update({ status }).eq('id', existing.id)
+  useEffect(() => { if (selectedSession) fetchAttendance(selectedSession) }, [selectedSession, fetchAttendance])
+
+  const toggleAttendance = async (studentId: string, currentRecord: any) => {
+    const newStatus = currentRecord?.status === 'present' ? 'absent' : 'present'
+    if (currentRecord) {
+      await supabase.from('attendance').update({ status: newStatus }).eq('id', currentRecord.id)
     } else {
-      await supabase.from('attendance').insert({ live_class_id: selectedSession, student_id: studentId, status })
+      await supabase.from('attendance').insert({
+        live_class_id: selectedSession,
+        student_id: studentId,
+        status: newStatus,
+        join_time: newStatus === 'present' ? new Date().toISOString() : null,
+      })
     }
-    toast.success(`Marked ${status}`)
+    toast.success(`Marked as ${newStatus.toUpperCase()}`)
     fetchAttendance(selectedSession)
   }
 
-  const card = 'var(--bg-card)'
-  const bdr  = '1px solid var(--border)'
-
-  const statusColor = (s?: string) => s === 'present' ? '#22c55e' : s === 'absent' ? '#ef4444' : s === 'late' ? '#f59e0b' : 'var(--text-muted)'
+  const activeSess = sessions.find(s => s.id === selectedSession)
+  const presentCount = attendances.filter(a => a.attendance?.status === 'present').length
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)' }}>✅ Attendance</h1>
-        <p style={{ color: 'var(--text-muted)', marginTop: 4, fontSize: '0.875rem' }}>Mark attendance for completed live sessions</p>
+    <div className="space-y-6">
+      <div className="page-header">
+        <h1>Attendance Tracking</h1>
+        <p>Review and manually adjust attendance for past live sessions</p>
       </div>
 
-      {/* Session Selector */}
-      <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
-        <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Select Session</p>
-        {loadingSessions ? (
-          <p style={{ color: 'var(--text-muted)' }}>Loading sessions…</p>
-        ) : sessions.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)' }}>No ended sessions found.</p>
-        ) : (
-          <select value={selectedSession} className="form-input"
-            onChange={e => { setSelectedSession(e.target.value); if (e.target.value) fetchAttendance(e.target.value) }}>
-            <option value="">— Select a session —</option>
-            {sessions.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.title} · {(s.classes as any)?.class_name} · {new Date(s.start_time).toLocaleDateString()}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {/* Attendance Table */}
-      {selectedSession && (
-        <div style={{ background: card, border: bdr, borderRadius: 14, padding: 20 }}>
-          <p style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 16 }}>
-            Students ({attendances.length})
-          </p>
-          {loadingAttendance ? (
-            <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
-          ) : attendances.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>No students enrolled in this course.</p>
+      <div className="dash-grid-sidebar" style={{ alignItems: 'start' }}>
+        {/* Left: Session Selection */}
+        <SectionCard title="Past Sessions" icon={<CalendarDays size={15} style={{ color: 'var(--accent-blue)' }} />}>
+          {loadingSessions ? (
+            <div className="p-4 space-y-3">
+              <SkeletonRow /><SkeletonRow /><SkeletonRow />
+            </div>
+          ) : sessions.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: '30px 20px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions found.</p>
           ) : (
-            <table className="data-table">
-              <thead>
-                <tr><th>Student</th><th>Status</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {attendances.map(a => (
-                  <tr key={a.student_id}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{a.full_name}</td>
-                    <td>
-                      <span style={{ fontWeight: 700, color: statusColor(a.attendance?.status), textTransform: 'capitalize' }}>
-                        {a.attendance?.status || '—'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {(['present', 'late', 'absent'] as const).map(s => (
-                          <button key={s} onClick={() => markAttendance(a.student_id, s)}
-                            style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${statusColor(s)}40`, background: a.attendance?.status === s ? `${statusColor(s)}20` : 'transparent', color: statusColor(s), fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer', textTransform: 'capitalize' }}>
-                            {s}
-                          </button>
-                        ))}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {sessions.map(s => (
+                <button 
+                  key={s.id} 
+                  onClick={() => setSelectedSession(s.id)}
+                  style={{ 
+                    padding: '12px 16px', borderBottom: '1px solid var(--border)', textAlign: 'left',
+                    background: selectedSession === s.id ? 'var(--bg-hover)' : 'transparent',
+                    borderLeft: selectedSession === s.id ? '3px solid var(--accent-blue)' : '3px solid transparent',
+                    cursor: 'pointer', transition: 'all 0.2s', borderRight: 'none', borderTop: 'none'
+                  }}
+                >
+                  <p style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{s.title}</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>
+                    {(s.classes as any)?.class_name} · {new Date(s.start_time).toLocaleDateString()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </SectionCard>
+
+        {/* Right: Attendance List */}
+        <div>
+          {selectedSession ? (
+            <SectionCard title={activeSess?.title || 'Attendance Report'} icon={<Users size={15} style={{ color: 'var(--accent-purple)' }} />}>
+              <div style={{ padding: '12px 20px', background: 'var(--bg-hover)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Users size={14} style={{ color: 'var(--text-muted)' }} />
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>Enrolled: <b style={{ color: 'var(--text-primary)' }}>{attendances.length}</b></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle size={14} style={{ color: 'var(--accent-green)' }} />
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--accent-green)' }}>Present: <b>{presentCount}</b></span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <XCircle size={14} style={{ color: 'var(--accent-red)' }} />
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--accent-red)' }}>Absent: <b>{attendances.length - presentCount}</b></span>
+                </div>
+              </div>
+
+              {loadingAttendance ? (
+                <table className="data-table"><tbody>{[...Array(5)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
+              ) : attendances.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                  <Users size={32} style={{ margin: '0 auto 12px', opacity: 0.3 }} />
+                  <p>No students enrolled in this course.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Student</th><th>Status</th><th>Join Time</th><th style={{ textAlign: 'right' }}>Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {attendances.map(a => {
+                      const isPresent = a.attendance?.status === 'present'
+                      return (
+                        <tr key={a.student_id}>
+                          <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{a.full_name}</td>
+                          <td>
+                            <span style={{
+                              padding: '4px 8px', borderRadius: 6, fontSize: '0.75rem', fontWeight: 600,
+                              background: isPresent ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                              color: isPresent ? 'var(--accent-green)' : 'var(--accent-red)'
+                            }}>
+                              {isPresent ? 'PRESENT' : 'ABSENT'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                            {isPresent && a.attendance?.join_time ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Clock size={12} /> {new Date(a.attendance.join_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </div>
+                            ) : '—'}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <Button 
+                              variant={isPresent ? 'secondary' : 'primary'} 
+                              size="sm" 
+                              onClick={() => toggleAttendance(a.student_id, a.attendance)}
+                            >
+                              {isPresent ? 'Mark Absent' : 'Mark Present'}
+                            </Button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </SectionCard>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '60px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16 }}>
+              <CalendarDays size={40} style={{ margin: '0 auto 16px', color: 'var(--accent-blue)', opacity: 0.5 }} />
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>Select a Session</h3>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Choose a past live class from the left to view and edit student attendance records.</p>
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

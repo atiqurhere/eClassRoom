@@ -60,14 +60,16 @@ export async function GET(request: NextRequest) {
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream'
     const body = await upstream.arrayBuffer()
 
-    // Sanitize filename for Content-Disposition header
+    // Check if inline view is requested
+    const inline = searchParams.get('inline') === 'true'
+    const disposition = inline ? 'inline' : 'attachment'
     const safe = filename.replace(/[^\w.\-]/g, '_')
 
     return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${safe}"`,
+        'Content-Disposition': `${disposition}; filename="${safe}"`,
         'Content-Length':      String(body.byteLength),
         // Cache for 1 hour to avoid hammering Supabase
         'Cache-Control':       'private, max-age=3600',

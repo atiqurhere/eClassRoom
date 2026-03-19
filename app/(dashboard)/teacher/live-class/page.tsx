@@ -52,7 +52,7 @@ export default function TeacherLiveClassPage() {
       const res  = await fetch('/api/live-class/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ classId }),
+        body: JSON.stringify({ classId, title: className + ' - Live Session' }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to start')

@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button'
 const IMAGE_EXTS  = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff']
 const VIDEO_EXTS  = ['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi']
 const TEXT_EXTS   = ['txt', 'md', 'csv', 'json', 'xml', 'html', 'css', 'js', 'ts', 'py', 'java', 'c', 'cpp']
+const PDF_EXTS    = ['pdf']
 
 function getExt(url: string) {
   return (url.split('?')[0].split('.').pop() || '').toLowerCase()
@@ -30,7 +31,8 @@ function getCategory(ext: string) {
   if (IMAGE_EXTS.includes(ext)) return 'image'
   if (VIDEO_EXTS.includes(ext)) return 'video'
   if (TEXT_EXTS.includes(ext))  return 'text'
-  return 'docs'   // PDF, PPTX, DOCX, XLSX, etc → Google Docs Viewer
+  if (PDF_EXTS.includes(ext))   return 'pdf'
+  return 'office' // DOCX, PPTX, XLSX etc → Microsoft Office Viewer
 }
 
 /** Convert plain-text URLs in a string to <a> tags */
@@ -53,15 +55,22 @@ export default function MaterialViewerPage() {
   const desc      = params.get('description') || ''
 
   const ext      = fileUrl ? getExt(fileUrl) : ''
-  const category = ext ? getCategory(ext) : 'docs'
+  const category = ext ? getCategory(ext) : 'office'
 
   const [textContent, setTextContent] = useState<string | null>(null)
   const [textLoading, setTextLoading] = useState(false)
   const [iframeKey, setIframeKey]     = useState(0)   // force refresh iframe
 
-  // Google Docs Viewer URL — works for PDF, PPTX, DOCX, XLS…
-  const googleDocsUrl = fileUrl
-    ? `https://docs.google.com/viewer?url=${encodeURIComponent(fileUrl)}&embedded=true`
+  // PDF uses our own proxy with inline=true so the browser renders it natively
+  const inlinePdfUrl = fileUrl 
+    ? `/api/download?url=${encodeURIComponent(fileUrl)}&filename=document.pdf&inline=true` 
+    : ''
+
+  // Office Viewer URL — works best for PPTX, DOCX, XLSX
+  // Needs a publicly accessible URL, so we pass the raw Supabase public URL.
+  // We double encode the URL as required by MS viewer.
+  const officeUrl = fileUrl
+    ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl)}`
     : ''
 
   useEffect(() => {
@@ -147,12 +156,23 @@ export default function MaterialViewerPage() {
               </pre>
         )}
 
-        {/* PDF / Office / Other — Google Docs Viewer */}
-        {category === 'docs' && (
+        {/* Native PDF Viewer via Inline Proxy */}
+        {category === 'pdf' && (
+          <iframe
+            key={iframeKey}
+            src={inlinePdfUrl}
+            style={{ width: '100%', height: 640, border: 'none' }}
+            title={title}
+            allow="fullscreen"
+          />
+        )}
+
+        {/* Office / Other — Microsoft Office Viewer */}
+        {category === 'office' && (
           <div style={{ position: 'relative' }}>
             {/* Info bar */}
             <div style={{ padding: '10px 16px', background: 'rgba(79,142,247,0.07)', borderBottom: '1px solid var(--border)', fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>📄 Rendered via Google Docs Viewer</span>
+              <span>📄 Rendered via Microsoft Office Viewer</span>
               <button onClick={() => setIframeKey(k => k + 1)}
                 style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', fontSize: '0.8125rem' }}>
                 ↺ Reload
@@ -160,7 +180,7 @@ export default function MaterialViewerPage() {
             </div>
             <iframe
               key={iframeKey}
-              src={googleDocsUrl}
+              src={officeUrl}
               style={{ width: '100%', height: 640, border: 'none' }}
               title={title}
               allow="fullscreen"

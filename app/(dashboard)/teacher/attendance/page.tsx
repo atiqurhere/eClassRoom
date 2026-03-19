@@ -101,6 +101,8 @@ export default function TeacherAttendancePage() {
   const activeSess = sessions.find(s => s.id === selectedSession)
   const presentCount = attendances.filter(a => a.attendance?.status === 'present').length
 
+  if (!mounted) return null
+
   return (
     <div className="space-y-6">
       <div className="page-header">

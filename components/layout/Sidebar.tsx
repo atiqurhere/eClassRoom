@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, BookOpen, Video,
   FileText, BarChart2, Settings, LogOut,
@@ -63,7 +63,6 @@ interface SidebarProps {
 
 export function Sidebar({ role, userName, userEmail, mobileOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
-  const router = useRouter()
   const navItems = roleNavMap[role] || []
 
   // Close mobile drawer on route change
@@ -80,7 +79,9 @@ export function Sidebar({ role, userName, userEmail, mobileOpen, onClose }: Side
     const supabase = createClient()
     await supabase.auth.signOut()
     toast.success('Signed out')
-    router.push('/login')
+    // Use hard redirect so Next.js clears all cached server pages
+    // and the server re-checks the (now empty) session cookie.
+    window.location.href = '/login'
   }
 
   return (

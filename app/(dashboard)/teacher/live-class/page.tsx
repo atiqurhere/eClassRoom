@@ -1,21 +1,24 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Video, Play, Square, ExternalLink, RefreshCw, Clock, Users } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { Video, Play, Square, RefreshCw, Clock, Users, Maximize2, X } from 'lucide-react'
 import { createClient }  from '@/lib/supabase/client'
 import { useAuth }       from '@/lib/hooks/useAuth'
 import { Button }        from '@/components/ui/Button'
 import { SectionCard }   from '@/components/ui/Card'
 import { SkeletonRow }   from '@/components/ui/Loading'
+import { JitsiMeeting }  from '@/components/live-class/JitsiMeeting'
 import { toast }         from 'sonner'
 
 export default function TeacherLiveClassPage() {
-  const { user }          = useAuth()
-  const [classes, setClasses]           = useState<any[]>([])
-  const [sessions, setSessions]         = useState<any[]>([])
-  const [loading, setLoading]           = useState(true)
-  const [starting, setStarting]         = useState<string | null>(null)
-  const [ending, setEnding]             = useState<string | null>(null)
+  const { user } = useAuth()
+  const [classes, setClasses]   = useState<any[]>([])
+  const [sessions, setSessions] = useState<any[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [starting, setStarting] = useState<string | null>(null)
+  const [ending, setEnding]     = useState<string | null>(null)
+  // Active session being displayed in the Jitsi embed
+  const [activeSession, setActiveSession] = useState<{ id: string; title: string; room_id: string } | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!user) return
@@ -32,7 +35,7 @@ export default function TeacherLiveClassPage() {
         .select('id, title, status, room_id, start_time, class_id, classes(class_name, courses(name))')
         .eq('teacher_id', user.id)
         .order('start_time', { ascending: false })
-        .limit(20),
+        .limit(30),
     ])
     setClasses(clsRes.data || [])
     setSessions(sesRes.data || [])
@@ -52,14 +55,13 @@ export default function TeacherLiveClassPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to start')
-
-      // Open Jitsi meeting in new tab
-      const roomId = json.liveClass?.room_id
-      if (roomId) {
-        window.open(`https://meet.jit.si/${roomId}`, '_blank')
-      }
-      toast.success(`Live session started for ${className}`)
+      const lc = json.liveClass
+      toast.success(`Session started for ${className}`)
       fetchData()
+      // Open Jitsi embed in-page
+      if (lc?.room_id) {
+        setActiveSession({ id: lc.id, title: lc.title || className, room_id: lc.room_id })
+      }
     } catch (err: any) {
       toast.error(err.message || 'Failed to start live class')
     } finally {
@@ -78,6 +80,7 @@ export default function TeacherLiveClassPage() {
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to end')
       toast.success('Session ended')
+      if (activeSession?.id === sessionId) setActiveSession(null)
       fetchData()
     } catch (err: any) {
       toast.error(err.message || 'Failed to end session')
@@ -86,44 +89,105 @@ export default function TeacherLiveClassPage() {
     }
   }
 
-  const rejoinSession = (session: any) => {
-    if (session.room_id) {
-      window.open(`https://meet.jit.si/${session.room_id}`, '_blank')
-    }
+  const handleMeetingEnd = () => {
+    // When teacher clicks "Leave" inside Jitsi, also end the session
+    if (activeSession) endSession(activeSession.id)
   }
 
-  const live    = sessions.filter(s => s.status === 'live')
-  const ended   = sessions.filter(s => s.status !== 'live')
+  const live  = sessions.filter(s => s.status === 'live')
+  const ended = sessions.filter(s => s.status !== 'live')
+
+  // If Jitsi is open, show the full-screen embed
+  if (activeSession) {
+    return (
+      <div className="space-y-4">
+        <div className="page-header flex items-center justify-between">
+          <div>
+            <h1>{activeSession.title}</h1>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              🔴 Live Now · Room: <code style={{ fontSize: '0.75rem', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: 4 }}>{activeSession.room_id}</code>
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="danger" leftIcon={<Square size={14} />}
+              loading={ending === activeSession.id}
+              onClick={() => endSession(activeSession.id)}>
+              End Session
+            </Button>
+            <Button variant="secondary" leftIcon={<X size={14} />}
+              onClick={() => setActiveSession(null)}>
+              Minimise
+            </Button>
+          </div>
+        </div>
+
+        {/* Info bar */}
+        <div style={{ padding: '10px 16px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, fontSize: '0.8125rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />
+          As the <b>teacher</b> you are the moderator. You can mute participants, record the session, and control the meeting.
+        </div>
+
+        {/* Jitsi embed */}
+        <div style={{ height: 620, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          <JitsiMeeting
+            roomName={activeSession.room_id}
+            userName={user?.full_name || user?.email || 'Teacher'}
+            userEmail={user?.email || ''}
+            isModerator={true}
+            onMeetingEnd={handleMeetingEnd}
+          />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
       <div className="page-header flex items-center justify-between">
         <div>
           <h1>Live Classes</h1>
-          <p>Start and manage your live class sessions</p>
+          <p>Start and manage live sessions. You will be the moderator with full controls.</p>
         </div>
         <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchData}>Refresh</Button>
       </div>
 
-      {/* How it works note */}
-      <div style={{ padding: '12px 16px', background: 'rgba(79,142,247,0.08)', borderRadius: 10, border: '1px solid rgba(79,142,247,0.2)', fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-        📌 Clicking <b>Start Session</b> creates a live class and opens the Jitsi meeting room in a <b>new tab</b>. Share the room link with your students from their dashboard.
-      </div>
+      {/* Jump back into live session */}
+      {live.length > 0 && (
+        <div style={{ padding: '14px 16px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 0 3px rgba(34,197,94,0.25)' }} />
+            <div>
+              <p style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9375rem' }}>{live[0].title} — Live now</p>
+              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{(live[0].classes as any)?.class_name}</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Button variant="gradient" size="sm" leftIcon={<Video size={14} />}
+              onClick={() => setActiveSession({ id: live[0].id, title: live[0].title, room_id: live[0].room_id })}>
+              Re-join
+            </Button>
+            <Button variant="danger" size="sm" leftIcon={<Square size={14} />}
+              loading={ending === live[0].id}
+              onClick={() => endSession(live[0].id)}>
+              End
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="dash-grid-main">
-        {/* My Classes → Start session */}
-        <SectionCard title="My Classes" icon={<Video size={15} style={{ color: 'var(--accent-blue)' }} />}>
+        {/* Classes → Start */}
+        <SectionCard title="My Classes" icon={<Users size={15} style={{ color: 'var(--accent-blue)' }} />}>
           {loading ? (
             <table className="data-table"><tbody>{[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
           ) : classes.length === 0 ? (
-            <p style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No classes assigned to you.</p>
+            <p style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: '0.875rem' }}>No classes assigned to you.</p>
           ) : (
             <table className="data-table">
               <thead><tr><th>Class</th><th>Course</th><th style={{ textAlign: 'right' }}>Action</th></tr></thead>
               <tbody>
                 {classes.map(cls => {
-                  const hasActiveLive = live.some(s => s.class_id === cls.id)
-                  const activeSession = live.find(s => s.class_id === cls.id)
+                  const liveSes = live.find(s => s.class_id === cls.id)
                   return (
                     <tr key={cls.id}>
                       <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
@@ -131,13 +195,17 @@ export default function TeacherLiveClassPage() {
                       </td>
                       <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(cls.courses as any)?.name}</td>
                       <td style={{ textAlign: 'right' }}>
-                        {hasActiveLive ? (
+                        {liveSes ? (
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />}
-                              onClick={() => rejoinSession(activeSession)}>Re-join</Button>
+                            <Button variant="gradient" size="sm" leftIcon={<Video size={13} />}
+                              onClick={() => setActiveSession({ id: liveSes.id, title: liveSes.title, room_id: liveSes.room_id })}>
+                              Join
+                            </Button>
                             <Button variant="danger" size="sm" leftIcon={<Square size={13} />}
-                              loading={ending === activeSession?.id}
-                              onClick={() => endSession(activeSession.id)}>End</Button>
+                              loading={ending === liveSes.id}
+                              onClick={() => endSession(liveSes.id)}>
+                              End
+                            </Button>
                           </div>
                         ) : (
                           <Button variant="gradient" size="sm" leftIcon={<Play size={13} fill="white" />}
@@ -155,56 +223,30 @@ export default function TeacherLiveClassPage() {
           )}
         </SectionCard>
 
-        {/* Session History */}
-        <div className="space-y-5">
-          {/* Active sessions */}
-          {live.length > 0 && (
-            <SectionCard title={`🔴 Live Now (${live.length})`} icon={<Video size={15} style={{ color: 'var(--accent-green)' }} />}>
-              <table className="data-table">
-                <thead><tr><th>Session</th><th>Class</th><th style={{ textAlign: 'right' }}>Action</th></tr></thead>
-                <tbody>
-                  {live.map(s => (
-                    <tr key={s.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.title}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(s.classes as any)?.class_name}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                          <Button variant="secondary" size="sm" leftIcon={<ExternalLink size={13} />} onClick={() => rejoinSession(s)}>Open</Button>
-                          <Button variant="danger" size="sm" leftIcon={<Square size={13} />} loading={ending === s.id} onClick={() => endSession(s.id)}>End</Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </SectionCard>
+        {/* Past sessions */}
+        <SectionCard title="Past Sessions" icon={<Clock size={15} style={{ color: 'var(--text-muted)' }} />} scrollable>
+          {loading ? (
+            <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
+          ) : ended.length === 0 ? (
+            <p style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions yet.</p>
+          ) : (
+            <table className="data-table">
+              <thead><tr><th>Session</th><th>Class</th><th>Date</th><th style={{ textAlign: 'right' }}>Status</th></tr></thead>
+              <tbody>
+                {ended.map(s => (
+                  <tr key={s.id}>
+                    <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.title}</td>
+                    <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{(s.classes as any)?.class_name}</td>
+                    <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-hover)', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-
-          {/* Past sessions */}
-          <SectionCard title="Past Sessions" icon={<Clock size={15} style={{ color: 'var(--accent-muted)' }} />} scrollable>
-            {loading ? (
-              <table className="data-table"><tbody>{[...Array(4)].map((_, i) => <SkeletonRow key={i} />)}</tbody></table>
-            ) : ended.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '30px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions yet.</p>
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>Session</th><th>Class</th><th>Date</th><th style={{ textAlign: 'right' }}>Status</th></tr></thead>
-                <tbody>
-                  {ended.map(s => (
-                    <tr key={s.id}>
-                      <td style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{s.title}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(s.classes as any)?.class_name}</td>
-                      <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-hover)', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.status}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-        </div>
+        </SectionCard>
       </div>
     </div>
   )

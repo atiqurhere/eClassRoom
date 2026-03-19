@@ -1,20 +1,22 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams }    from 'next/navigation'
-import { Video, Users, ArrowLeft, ExternalLink } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { useAuth }      from '@/lib/hooks/useAuth'
-import { Button }       from '@/components/ui/Button'
-import { Loading }      from '@/components/ui/Loading'
-import Link             from 'next/link'
-import { toast }        from 'sonner'
+import { useParams }     from 'next/navigation'
+import { Video, ArrowLeft, Users } from 'lucide-react'
+import { createClient }  from '@/lib/supabase/client'
+import { useAuth }       from '@/lib/hooks/useAuth'
+import { JitsiMeeting }  from '@/components/live-class/JitsiMeeting'
+import { Button }        from '@/components/ui/Button'
+import { Loading }       from '@/components/ui/Loading'
+import Link              from 'next/link'
+import { toast }         from 'sonner'
 
 export default function StudentLiveClassPage() {
-  const { id }    = useParams()
-  const { user }  = useAuth()
+  const { id }   = useParams()
+  const { user } = useAuth()
   const [liveClass, setLiveClass] = useState<any>(null)
   const [loading, setLoading]     = useState(true)
+  const [joined, setJoined]       = useState(false)
   const [joining, setJoining]     = useState(false)
 
   useEffect(() => {
@@ -36,23 +38,31 @@ export default function StudentLiveClassPage() {
     if (!user || !liveClass) return
     setJoining(true)
     try {
-      // v2: attendance.student_id IS user.id directly — no students table
+      // v2: attendance.student_id IS user.id directly
       const supabase = createClient()
-      const { error } = await supabase.from('attendance').upsert({
+      await supabase.from('attendance').upsert({
         live_class_id: liveClass.id,
-        student_id: user.id,
-        status: 'present',
-        join_time: new Date().toISOString(),
+        student_id:    user.id,
+        status:        'present',
+        join_time:     new Date().toISOString(),
       }, { onConflict: 'live_class_id,student_id', ignoreDuplicates: false })
-      if (error) console.warn('Attendance record:', error.message)
-    } catch (e) { /* non-critical */ }
-
-    // Open Jitsi room in new tab
-    if (liveClass.room_id) {
-      window.open(`https://meet.jit.si/${liveClass.room_id}`, '_blank')
-    }
-    toast.success('Attendance marked — opening meeting room...')
+    } catch { /* attendance is non-critical */ }
+    toast.success('Attendance marked ✓')
+    setJoined(true)
     setJoining(false)
+  }
+
+  const handleLeave = async () => {
+    if (!user || !liveClass) return
+    try {
+      const supabase = createClient()
+      await supabase.from('attendance')
+        .update({ leave_time: new Date().toISOString() })
+        .eq('live_class_id', liveClass.id)
+        .eq('student_id', user.id)
+    } catch {}
+    setJoined(false)
+    toast.info('You left the session')
   }
 
   if (loading) return <Loading text="Loading class..." />
@@ -74,16 +84,46 @@ export default function StudentLiveClassPage() {
     </div>
   )
 
+  // ── Joined: show Jitsi embed ──────────────────────────────────────────────
+  if (joined) {
+    return (
+      <div className="space-y-4">
+        <div className="page-header flex items-center justify-between">
+          <div>
+            <h1>{liveClass.title}</h1>
+            <p style={{ fontSize: '0.8125rem' }}>
+              {(liveClass.classes as any)?.courses?.name} · {(liveClass.classes as any)?.class_name} · Teacher: {(liveClass.users as any)?.full_name}
+            </p>
+          </div>
+          <Button variant="secondary" leftIcon={<ArrowLeft size={14} />} onClick={handleLeave}>Leave</Button>
+        </div>
+
+        <div style={{ padding: '10px 16px', background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)', borderRadius: 10, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+          ✅ Attendance marked · Your mic and camera are off by default. Use the toolbar below the video to enable them.
+        </div>
+
+        <div style={{ height: 620, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--border)' }}>
+          <JitsiMeeting
+            roomName={liveClass.room_id}
+            userName={user?.full_name || user?.email || 'Student'}
+            userEmail={user?.email || ''}
+            isModerator={false}
+            onMeetingEnd={handleLeave}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Pre-join screen ───────────────────────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="page-header">
         <h1>{liveClass.title}</h1>
-        <p>
-          {(liveClass.classes as any)?.courses?.name} · {(liveClass.classes as any)?.class_name} · Teacher: {(liveClass.users as any)?.full_name}
-        </p>
+        <p>{(liveClass.classes as any)?.courses?.name} · {(liveClass.classes as any)?.class_name}</p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingTop: 60, gap: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 60, gap: 24 }}>
         <div style={{ width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(34,197,94,0.15)' }}>
           <Video size={36} style={{ color: 'var(--accent-green)' }} />
         </div>
@@ -93,10 +133,13 @@ export default function StudentLiveClassPage() {
             🔴 LIVE NOW
           </span>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{liveClass.title}</h2>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 4 }}>Clicking Join will mark you as present and open the meeting room in a new tab.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 6, maxWidth: 380 }}>
+            Teacher: <b>{(liveClass.users as any)?.full_name}</b><br />
+            Joining will mark you as present in attendance.
+          </p>
         </div>
 
-        <Button variant="gradient" size="lg" leftIcon={<ExternalLink size={18} />} loading={joining} onClick={handleJoin}>
+        <Button variant="gradient" size="lg" leftIcon={<Users size={18} />} loading={joining} onClick={handleJoin}>
           Join Class
         </Button>
 

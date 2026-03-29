@@ -10,9 +10,14 @@ export function useAuth() {
 
   useEffect(() => {
     // Get initial session
-    authService.getCurrentUser().then((user) => {
-      setUser(user)
-    })
+    authService.getCurrentUser()
+      .then((user) => {
+        setUser(user)
+      })
+      .catch((error) => {
+        console.error('Failed to get current user:', error)
+        clearAuth()
+      })
 
     // Listen for auth changes
     const supabase = createClient()
@@ -20,8 +25,13 @@ export function useAuth() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session?.user) {
-        const user = await authService.getCurrentUser()
-        setUser(user)
+        try {
+          const user = await authService.getCurrentUser()
+          setUser(user)
+        } catch (error) {
+          console.error('Failed to get user on auth change:', error)
+          clearAuth()
+        }
       } else {
         clearAuth()
       }

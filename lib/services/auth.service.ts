@@ -70,11 +70,16 @@ export const authService = {
     if (!user) return null
 
     // Get user profile
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('users')
       .select('*')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
+
+    if (error) {
+      console.error('[AuthService] Profile fetch error:', error)
+      return null
+    }
 
     return profile as User | null
   },

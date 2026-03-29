@@ -40,16 +40,17 @@ export async function middleware(request: NextRequest) {
   // Redirect authenticated users away from auth pages
   if (user && (path === '/login' || path === '/signup')) {
     // Get user role and redirect to appropriate dashboard
-    const { data: profile } = await supabase
+    const { data: profile, error } = await supabase
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (profile) {
       return NextResponse.redirect(new URL(`/${profile.role}/dashboard`, request.url))
     }
-    return NextResponse.redirect(new URL('/login', request.url))
+    // No profile found for this auth user (e.g. database was wiped) => force logout
+    return NextResponse.redirect(new URL('/login?error=profile_missing', request.url))
   }
 
   // Protect dashboard routes - require authentication
@@ -69,7 +70,7 @@ export async function middleware(request: NextRequest) {
       .from('users')
       .select('role')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
 
     if (profile) {
       const { role } = profile
@@ -92,6 +93,11 @@ export async function middleware(request: NextRequest) {
       // Redirect root to appropriate dashboard
       if (path === '/') {
         return NextResponse.redirect(new URL(`/${role}/dashboard`, request.url))
+      }
+    } else {
+      // Authenticated with Supabase Auth but no row in public.users
+      if (path !== '/' && path !== '/login' && path !== '/signup') {
+        return NextResponse.redirect(new URL('/login?error=profile_missing', request.url))
       }
     }
   }

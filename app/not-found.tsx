@@ -1,35 +1,34 @@
-'use client'
-
 import Link from 'next/link'
-import { Button } from '@/components/ui/Button'
-import { Home, ArrowLeft } from 'lucide-react'
+import { Home } from 'lucide-react'
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen flex flex-col items-center justify-center px-4"
+      style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
       <div className="text-center">
-        <div className="mb-8">
-          <h1 className="text-9xl font-bold text-primary-600">404</h1>
-          <h2 className="text-3xl font-semibold text-gray-900 mt-4">Page Not Found</h2>
-          <p className="text-gray-600 mt-2 max-w-md">
-            The page you&apos;re looking for doesn&apos;t exist. It might have been moved or deleted.
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link href="/">
-            <Button leftIcon={<Home size={18} />}>Go Home</Button>
-          </Link>
-          <Button variant="secondary" leftIcon={<ArrowLeft size={18} />} onClick={() => window.history.back()}>
-            Go Back
-          </Button>
-        </div>
-      </div>
-
-      <div className="mt-12 text-center">
-        <p className="text-sm text-gray-500">
-          If you think this is an error, please contact support.
+        <p style={{ fontSize: '7rem', fontWeight: 800, lineHeight: 1,
+          background: 'linear-gradient(135deg, #22c55e 0%, #f59e0b 100%)',
+          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+          404
         </p>
+        <h2 style={{ fontSize: '1.75rem', fontWeight: 700, marginTop: 12, color: 'var(--text-primary)' }}>
+          Page Not Found
+        </h2>
+        <p style={{ color: 'var(--text-muted)', marginTop: 8, maxWidth: 380, margin: '8px auto 32px' }}>
+          The page you&apos;re looking for doesn&apos;t exist. It may have been moved or deleted.
+        </p>
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+          <Link href="/"
+            style={{ padding: '12px 28px', background: 'linear-gradient(135deg, #22c55e, #16a34a)', color: '#fff',
+              borderRadius: 10, fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Home size={16} /> Go Home
+          </Link>
+          <Link href="/login"
+            style={{ padding: '12px 24px', background: 'var(--bg-card)', color: 'var(--text-primary)',
+              border: '1px solid var(--border)', borderRadius: 10, fontWeight: 600, textDecoration: 'none' }}>
+            Sign In
+          </Link>
+        </div>
       </div>
     </div>
   )

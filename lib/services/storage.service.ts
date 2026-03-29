@@ -63,7 +63,7 @@ export const storageService = {
     const filePath = `${teacherId}/assignments/${fileName}`
 
     await this.uploadFile('assignments', filePath, file)
-    return this.getSignedUrl('assignments', filePath)
+    return this.getPublicUrl('assignments', filePath)
   },
 
   // Upload submission file
@@ -77,7 +77,7 @@ export const storageService = {
     const filePath = `${studentId}/submissions/${fileName}`
 
     await this.uploadFile('submissions', filePath, file)
-    return this.getSignedUrl('submissions', filePath)
+    return this.getPublicUrl('submissions', filePath)
   },
 
   // Upload course material
@@ -87,7 +87,7 @@ export const storageService = {
     const filePath = `${teacherId}/materials/${fileName}`
 
     await this.uploadFile('materials', filePath, file)
-    return this.getSignedUrl('materials', filePath)
+    return this.getPublicUrl('materials', filePath)
   },
 
   // Validate file

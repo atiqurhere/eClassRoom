@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
@@ -16,6 +16,21 @@ export function LoginForm() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [loginMode, setLoginMode] = useState<'email' | 'student_id'>('email')
+
+  useEffect(() => {
+    // If the database was wiped and middleware bounced them back here,
+    // their browser is technically still stuck logged in strictly via Supabase Auth.
+    // Force a complete logout so they can sign up / start fresh again.
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get('error') === 'profile_missing') {
+        authService.signOut().then(() => {
+          toast.error('Your account profile is missing. You have been securely logged out. Please sign up again or contact admin.')
+          window.history.replaceState({}, document.title, '/login')
+        }).catch(() => {})
+      }
+    }
+  }, [])
 
   const { register, handleSubmit, formState: { errors }, reset } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),

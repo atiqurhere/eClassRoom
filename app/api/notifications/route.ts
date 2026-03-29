@@ -4,21 +4,28 @@ import { NextRequest, NextResponse } from 'next/server'
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-    const role = profile?.role || 'student'
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
-    const { data } = await supabase
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Get notifications for the user
+    const { data: notifications, error } = await supabase
       .from('notifications')
       .select('*')
-      .or(`user_id.eq.${user.id},target_role.eq.${role}`)
       .order('created_at', { ascending: false })
       .limit(50)
 
-    return NextResponse.json({ notifications: data || [] })
-  } catch {
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ notifications })
+  } catch (error) {
+    console.error('Error fetching notifications:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -26,58 +33,51 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-    if (!['admin', 'teacher'].includes(profile?.role || '')) {
+    // Check authentication
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    // Check user role (only admin/teacher can create notifications)
+    const { data: profile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile || !['admin', 'teacher'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const { title, message, type, targetRole, userId, classId } = await request.json()
+    const body = await request.json()
+    const { title, message, type, targetRole, classId, userId, link } = body
 
-    const notifData: any = {
-      title,
-      message,
-      type: type || 'info',
-      sender_id: user.id,
+    // Create notification
+    const { data: notification, error } = await supabase
+      .from('notifications')
+      .insert({
+        title,
+        message,
+        type,
+        sender_id: user.id,
+        target_role: targetRole,
+        class_id: classId,
+        user_id: userId,
+        link,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    if (userId) {
-      notifData.user_id = userId
-    } else if (targetRole) {
-      notifData.target_role = targetRole
-    }
-
-    const { error } = await supabase.from('notifications').insert(notifData)
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
-
-    return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
-}
-
-export async function PATCH(request: NextRequest) {
-  try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-    const { id, markAll } = await request.json()
-
-    if (markAll) {
-      const { data: profile } = await supabase.from('users').select('role').eq('id', user.id).single()
-      await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .or(`user_id.eq.${user.id},target_role.eq.${profile?.role}`)
-    } else if (id) {
-      await supabase.from('notifications').update({ is_read: true }).eq('id', id)
-    }
-
-    return NextResponse.json({ success: true })
-  } catch {
+    return NextResponse.json({ notification })
+  } catch (error) {
+    console.error('Error creating notification:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

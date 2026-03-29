@@ -1,10 +1,17 @@
 import { LoginForm } from '@/components/auth/LoginForm'
 
 export const metadata = {
-  title: 'Sign In — Latifia Quraner Alo',
-  description: 'Sign in to your Latifia Quraner Alo account to access your Quran classes and lessons.',
+  title: 'Login - E-Classroom LMS',
+  description: 'Sign in to your E-Classroom account',
 }
 
 export default function LoginPage() {
-  return <LoginForm />
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+        Sign In to Your Account
+      </h2>
+      <LoginForm />
+    </div>
+  )
 }

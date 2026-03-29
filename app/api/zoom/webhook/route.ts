@@ -9,7 +9,6 @@
  *   - recording.completed      → Insert row in upload_jobs (status='pending')
  */
 
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { verifyZoomWebhook } from '@/lib/zoom'
 import { NextRequest, NextResponse } from 'next/server'

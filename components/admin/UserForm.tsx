@@ -6,9 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { userSchema, type UserInput } from '@/lib/utils/validators'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Input'
-import { createClient } from '@/lib/supabase/client'
-import { Users } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { authService } from '@/lib/services/auth.service'
 import { toast } from 'sonner'
 
 interface UserFormProps {
@@ -25,7 +24,13 @@ export function UserForm({ onSuccess }: UserFormProps) {
     watch,
     formState: { errors },
   } = useForm<UserInput & { password: string; studentId?: string }>({
-    defaultValues: { role: 'student' },
+    resolver: zodResolver(userSchema.extend({
+      password: userSchema.shape.email,
+      studentId: userSchema.shape.email.optional(),
+    })),
+    defaultValues: {
+      role: 'student',
+    },
   })
 
   const selectedRole = watch('role')
@@ -33,85 +38,95 @@ export function UserForm({ onSuccess }: UserFormProps) {
   const onSubmit = async (data: UserInput & { password: string; studentId?: string }) => {
     try {
       setLoading(true)
-      // Call the admin user creation API
-      const res = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: data.email,
-          fullName: data.fullName,
-          role: data.role,
-          studentId: data.studentId,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success('User created successfully!')
+
+      // Generate a temporary password
+      const tempPassword = `temp${Math.random().toString(36).substr(2, 8)}`
+
+      await authService.signUp(
+        data.email,
+        tempPassword,
+        data.fullName,
+        data.role,
+        data.studentId
+      )
+
+      toast.success('User created successfully! Temporary password sent to email.')
       reset()
       if (onSuccess) onSuccess()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create user')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to create user')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="glass-card p-5 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--accent-green)' }}>
-          <Users size={14} />
-        </div>
-        <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>Create New User</p>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <Input
-            label="Full Name"
-            placeholder="Enter full name"
-            error={errors.fullName?.message}
-            {...register('fullName', { required: 'Full name is required' })}
-          />
-          <Input
-            label="Email"
-            type="email"
-            placeholder="Enter email address"
-            error={errors.email?.message}
-            {...register('email', { required: 'Email is required' })}
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <Select
-            label="Role"
-            options={[
-              { value: 'student', label: '👨‍🎓 Student' },
-              { value: 'teacher', label: '👩‍🏫 Teacher' },
-              { value: 'admin', label: '👑 Admin' },
-            ]}
-            {...register('role')}
-          />
-          {selectedRole === 'student' && (
+    <Card>
+      <CardHeader>
+        <CardTitle>Create New User</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
-              label="Student ID (optional)"
-              placeholder="e.g. LQA-2026-001"
-              {...register('studentId')}
+              label="Full Name"
+              placeholder="Enter full name"
+              error={errors.fullName?.message}
+              {...register('fullName')}
             />
-          )}
-        </div>
 
-        <div className="rounded-lg px-3 py-2.5" style={{ background: 'rgba(79,142,247,0.08)', border: '1px solid rgba(79,142,247,0.2)' }}>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-            <strong>Note:</strong> A password reset email will be sent to the user so they can set their own password.
-          </p>
-        </div>
+            <Input
+              label="Email"
+              type="email"
+              placeholder="Enter email address"
+              error={errors.email?.message}
+              {...register('email')}
+            />
+          </div>
 
-        <div className="flex gap-2">
-          <Button type="submit" variant="gradient" loading={loading} fullWidth>Create User</Button>
-          <Button type="button" variant="secondary" onClick={() => reset()}>Reset</Button>
-        </div>
-      </form>
-    </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Role
+              </label>
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                {...register('role')}
+              >
+                <option value="student">Student</option>
+                <option value="teacher">Teacher</option>
+                <option value="admin">Admin</option>
+              </select>
+              {errors.role && <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>}
+            </div>
+
+            {selectedRole === 'student' && (
+              <Input
+                label="Student ID"
+                placeholder="Enter student ID"
+                error={errors.studentId?.message}
+                {...register('studentId')}
+              />
+            )}
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-blue-800 text-sm">
+              <strong>Note:</strong> A temporary password will be generated and sent to the user's email.
+              They can change it after their first login.
+            </p>
+          </div>
+
+          <div className="flex space-x-3">
+            <Button type="submit" loading={loading} className="flex-1">
+              Create User
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => reset()}>
+              Reset
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   )
 }

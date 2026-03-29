@@ -1,11 +1,10 @@
 'use client'
 
-import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
+import { ErrorBoundary } from 'react-error-boundary'
 import { Button } from '@/components/ui/Button'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 
-function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
-  const errMessage = error instanceof Error ? error.message : String(error)
+function ErrorFallback({ error, resetErrorBoundary }: { error: Error; resetErrorBoundary: () => void }) {
   return (
     <div className="min-h-[400px] flex flex-col items-center justify-center px-4">
       <div className="text-center">
@@ -23,7 +22,7 @@ function ErrorFallback({ error, resetErrorBoundary }: FallbackProps) {
               Error Details
             </summary>
             <pre className="mt-2 text-sm text-red-600 overflow-x-auto">
-              {errMessage}
+              {error.message}
             </pre>
           </details>
 

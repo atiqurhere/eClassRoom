@@ -1,174 +1,102 @@
-export const dynamic   = 'force-dynamic'
-export const revalidate = 0
+'use client'
 
-import { createClient }        from '@/lib/supabase/server'
-import { redirect }            from 'next/navigation'
-import Link                    from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
-import { BookOpen, Video, FileText, Send, Bell, ChevronRight } from 'lucide-react'
-import { SectionCard }         from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { BookOpen, FileText, Video, Clock } from 'lucide-react'
+import { useAuth } from '@/lib/hooks/useAuth'
+import { Button } from '@/components/ui/Button'
+import Link from 'next/link'
 
-export default async function StudentDashboardPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
-
-  const { data: profile } = await supabase
-    .from('users').select('full_name, student_id').eq('id', user.id).single()
-
-  const { data: enrollments } = await supabase
-    .from('course_enrollments')
-    .select('course_id, enrolled_at, courses(id, name, classes(id, class_name, section, teacher_id, users!classes_teacher_id_fkey(full_name)))')
-    .eq('student_id', user.id)
-    .order('enrolled_at', { ascending: false })
-
-  const courses    = (enrollments || []).map((e: any) => e.courses).filter(Boolean)
-  const allClasses = courses.flatMap((c: any) => (c.classes || []).map((cls: any) => ({ ...cls, course_name: c.name })))
-
-  const myClassIds = new Set(allClasses.map((c: any) => c.id))
-
-  const [liveRes, assignmentsRes, submissionsRes, notifRes] = await Promise.all([
-    supabase.from('live_classes').select('id, title, status, room_id, class_id, classes(class_name, courses(name))').eq('status', 'live'),
-    allClasses.length
-      ? supabase.from('assignments').select('id, title, due_date, max_score, class_id, classes(class_name)').in('class_id', allClasses.map((c: any) => c.id)).order('due_date', { ascending: true }).limit(6)
-      : Promise.resolve({ data: [] }),
-    supabase.from('submissions').select('id, status, assignment_id').eq('student_id', user.id).limit(30),
-    supabase.from('notifications').select('id, title, type, is_read, created_at').or(`user_id.eq.${user.id},target_role.eq.student`).order('created_at', { ascending: false }).limit(4),
-  ])
-
-  const now          = new Date()
-  const live         = (liveRes.data     || []) as any[]
-  const assignments  = (assignmentsRes.data || []) as any[]
-  const submissions  = (submissionsRes.data || []) as any[]
-  const notifs       = ((notifRes as any).data || []) as any[]
-  const overdueCount = assignments.filter((a: any) => new Date(a.due_date) < now).length
-  const submittedIds = new Set(submissions.map((s: any) => s.assignment_id))
-  const relevantLive = live.filter((l: any) => myClassIds.has(l.class_id))
+export default function StudentDashboard() {
+  const { user } = useAuth()
 
   const stats = [
-    { label: 'Enrolled Courses', value: courses.length,       sub: `${allClasses.length} classes`, color: 'var(--accent-blue)',   bg: 'rgba(79,142,247,0.1)',  icon: <BookOpen size={16} /> },
-    { label: 'Live Now',         value: relevantLive.length,  sub: relevantLive.length > 0 ? 'In progress!' : 'None active', color: 'var(--accent-green)',  bg: 'rgba(34,197,94,0.1)',  icon: <Video size={16} /> },
-    { label: 'Upcoming Tasks',   value: assignments.length,   sub: `${overdueCount} overdue`,      color: 'var(--accent-orange)', bg: 'rgba(245,158,11,0.1)', icon: <FileText size={16} /> },
-    { label: 'Submissions',      value: submissions.length,   sub: 'All time',                     color: 'var(--accent-purple)', bg: 'rgba(139,92,246,0.1)',icon: <Send size={16} /> },
+    { name: 'Enrolled Classes', value: '6', icon: BookOpen, color: 'bg-blue-500' },
+    { name: 'Pending Assignments', value: '4', icon: FileText, color: 'bg-red-500' },
+    { name: 'Live Classes', value: '1', icon: Video, color: 'bg-green-500' },
+    { name: 'Attendance', value: '92%', icon: Clock, color: 'bg-purple-500' },
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="page-header">
-        <h1>Welcome back, {profile?.full_name?.split(' ')[0] ?? 'Student'} 👋</h1>
-        <p>{profile?.student_id ? `ID: ${profile.student_id} · ` : ''}{courses.length} course{courses.length !== 1 ? 's' : ''} enrolled</p>
+    <div>
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Student Dashboard</h1>
+        <p className="text-gray-600 mt-1">Welcome back, {user?.full_name}!</p>
       </div>
 
-      {/* Stats */}
-      <div className="dash-stats-grid">
-        {stats.map(s => (
-          <div key={s.label} className="stat-card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: s.bg, color: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{s.icon}</div>
-            <div>
-              <p style={{ fontSize: '1.625rem', fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1 }}>{s.value}</p>
-              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: 3 }}>{s.label}</p>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 1 }}>{s.sub}</p>
-            </div>
-          </div>
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {stats.map((stat) => (
+          <Card key={stat.name}>
+            <CardContent className="flex items-center justify-between pt-6">
+              <div>
+                <p className="text-sm text-gray-600">{stat.name}</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
+              </div>
+              <div className={`${stat.color} text-white p-3 rounded-lg`}>
+                <stat.icon size={24} />
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      <div className="dash-grid-main">
-        {/* Left: Courses + Live */}
-        <div className="space-y-5">
-          <SectionCard
-            title="My Enrolled Courses"
-            icon={<BookOpen size={15} style={{ color: 'var(--accent-blue)' }} />}
-            action={<Link href="/student/classes" style={{ fontSize: '0.8125rem', color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 500 }}>View All →</Link>}
-          >
-            {courses.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Not enrolled in any courses yet.</p>
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>Course</th><th>Classes</th></tr></thead>
-                <tbody>
-                  {courses.map((c: any) => (
-                    <tr key={c.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{c.name}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
-                        {(c.classes || []).map((cls: any) => cls.class_name + (cls.section ? ` (${cls.section})` : '')).join(', ')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-
-          {relevantLive.length > 0 && (
-            <SectionCard title="Live Sessions" icon={<Video size={15} style={{ color: 'var(--accent-green)' }} />}>
-              <table className="data-table">
-                <thead><tr><th>Session</th><th>Class</th><th style={{textAlign:'right'}}>Action</th></tr></thead>
-                <tbody>
-                  {relevantLive.map((l: any) => (
-                    <tr key={l.id}>
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{l.title}</td>
-                      <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(l.classes as any)?.class_name}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <Link href={`/student/live-class/${l.id}`} style={{ display: 'inline-block', padding: '5px 12px', background: 'rgba(34,197,94,0.12)', color: 'var(--accent-green)', borderRadius: 6, fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none' }}>JOIN</Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </SectionCard>
-          )}
-        </div>
-
-        {/* Right: Assignments + Notifications */}
-        <div className="space-y-5">
-          <SectionCard
-            title="Upcoming Assignments"
-            icon={<FileText size={15} style={{ color: 'var(--accent-orange)' }} />}
-            action={<Link href="/student/assignments" style={{ fontSize: '0.8125rem', color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 500 }}>View All →</Link>}
-          >
-            {assignments.length === 0 ? (
-              <p style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No upcoming assignments.</p>
-            ) : (
-              <table className="data-table">
-                <thead><tr><th>Title</th><th>Class</th><th style={{textAlign:'right'}}>Status</th></tr></thead>
-                <tbody>
-                  {assignments.map((a: any) => {
-                    const isOverdue   = new Date(a.due_date) < now
-                    const isSubmitted = submittedIds.has(a.id)
-                    return (
-                      <tr key={a.id}>
-                        <td>
-                          <p style={{ fontWeight: 500, color: 'var(--text-primary)' }}>{a.title}</p>
-                          <p style={{ fontSize: '0.75rem', color: isOverdue ? 'var(--accent-red)' : 'var(--text-muted)', marginTop: 2 }}>Due {new Date(a.due_date).toLocaleDateString()}</p>
-                        </td>
-                        <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{(a.classes as any)?.class_name}</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <span style={{ padding: '4px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: isSubmitted ? 'rgba(34,197,94,0.12)' : isOverdue ? 'rgba(239,68,68,0.12)' : 'rgba(79,142,247,0.12)', color: isSubmitted ? 'var(--accent-green)' : isOverdue ? 'var(--accent-red)' : 'var(--accent-blue)' }}>
-                            {isSubmitted ? '✓ Done' : isOverdue ? 'Overdue' : 'Pending'}
-                          </span>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-
-          {notifs.length > 0 && (
-            <SectionCard title="Notifications" icon={<Bell size={15} style={{ color: 'var(--accent-blue)' }} />}>
-              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                {notifs.map((n: any) => (
-                  <div key={n.id} style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: n.is_read ? 'transparent' : 'rgba(79,142,247,0.04)', borderLeft: n.is_read ? 'none' : '3px solid var(--accent-blue)' }}>
-                    <p style={{ fontWeight: 500, color: 'var(--text-primary)', fontSize: '0.875rem' }}>{n.title}</p>
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 3 }}>{formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}</p>
+      {/* Today's Classes & Upcoming Assignments */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Today's Classes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                { time: '09:00 AM', class: 'Mathematics', teacher: 'Mr. Smith', status: 'upcoming' },
+                { time: '11:00 AM', class: 'Physics', teacher: 'Dr. Johnson', status: 'live' },
+                { time: '02:00 PM', class: 'English', teacher: 'Ms. Davis', status: 'upcoming' },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between pb-3 border-b border-gray-100 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{item.class}</p>
+                    <p className="text-xs text-gray-500">{item.time} • {item.teacher}</p>
                   </div>
-                ))}
-              </div>
-            </SectionCard>
-          )}
-        </div>
+                  {item.status === 'live' ? (
+                    <Button size="sm" asChild>
+                      <Link href="/student/live-class">Join Now</Link>
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-gray-500">Upcoming</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Upcoming Assignments</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {[
+                { name: 'Algebra Assignment 5', subject: 'Mathematics', dueDate: 'Tomorrow', urgent: true },
+                { name: 'Physics Lab Report', subject: 'Physics', dueDate: '3 days', urgent: false },
+                { name: 'English Essay', subject: 'English', dueDate: '5 days', urgent: false },
+              ].map((item, i) => (
+                <div key={i} className="flex items-center justify-between pb-3 border-b border-gray-100 last:border-0">
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{item.name}</p>
+                    <p className="text-xs text-gray-500">{item.subject}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xs font-medium ${item.urgent ? 'text-red-600' : 'text-gray-600'}`}>
+                      Due {item.dueDate}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

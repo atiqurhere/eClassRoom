@@ -1,453 +1,490 @@
--- ============================================================
--- Latifia Quraner Alo — E-Classroom LMS
--- Complete Database Schema (v2 — Class-Centric Architecture)
--- ============================================================
--- ARCHITECTURE:
---   Courses (top-level, admin creates)
---     └─ Classes (sub-units of a course, each has a teacher)
---          └─ Live Classes, Materials, Assignments, Attendance
---   Students enrolled in a Course → get access to all its Classes
--- ============================================================
+-- ============================================
+-- E-CLASSROOM LMS - COMPLETE SUPABASE SCHEMA
+-- ============================================
+-- This file contains the complete database schema for the E-Classroom LMS
+-- Run this in Supabase SQL Editor to set up the entire database
 
+-- ============================================
+-- ENABLE EXTENSIONS
+-- ============================================
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ──────────────────────────────────────────────────────────────
--- NOTE: get_my_role() is defined AFTER users table below (ordering fix)
-
--- ──────────────────────────────────────────────────────────────
--- 1. USERS
--- ──────────────────────────────────────────────────────────────
+-- ============================================
+-- 1. USERS TABLE (extends Supabase auth.users)
+-- ============================================
 CREATE TABLE public.users (
-  id          uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  email       text UNIQUE NOT NULL,
-  full_name   text NOT NULL,
-  role        text NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
-  avatar_url  text,
-  student_id  text UNIQUE,                   -- LQA code set after invite claim (students only)
-  created_at  timestamptz DEFAULT now() NOT NULL,
-  updated_at  timestamptz DEFAULT now() NOT NULL
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('admin', 'teacher', 'student')),
+  avatar_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Enable RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users can view own profile"   ON public.users FOR SELECT USING (auth.uid()::uuid = id);
-CREATE POLICY "Authenticated users view profiles" ON public.users FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Admins can view all users"    ON public.users FOR SELECT USING (public.get_my_role() = 'admin');
-CREATE POLICY "Users can update own profile" ON public.users FOR UPDATE USING (auth.uid()::uuid = id);
-CREATE POLICY "Admins can update all users"  ON public.users FOR UPDATE USING (public.get_my_role() = 'admin');
-CREATE POLICY "Trigger can insert users"     ON public.users FOR INSERT WITH CHECK (true);
 
-CREATE OR REPLACE FUNCTION update_updated_at()
-RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql;
-CREATE TRIGGER users_updated_at BEFORE UPDATE ON public.users FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+-- RLS Policies for users
+CREATE POLICY "Users can view own profile" ON public.users
+  FOR SELECT USING (auth.uid() = id);
 
--- ──────────────────────────────────────────────────────────────
--- SECURITY HELPER (defined after users table so relation exists)
--- ──────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS text LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS
-$$ SELECT role FROM public.users WHERE id = auth.uid()::uuid; $$;
+CREATE POLICY "Admins can view all users" ON public.users
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
 
--- ──────────────────────────────────────────────────────────────
--- 2. COURSES (top-level container — admin creates)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.courses (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        text NOT NULL,
-  description text,
-  created_by  uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at  timestamptz DEFAULT now() NOT NULL,
-  updated_at  timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated can view courses" ON public.courses FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Admins can manage courses"       ON public.courses FOR ALL USING (public.get_my_role() = 'admin');
-CREATE TRIGGER courses_updated_at BEFORE UPDATE ON public.courses FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE POLICY "Users can update own profile" ON public.users
+  FOR UPDATE USING (auth.uid() = id);
 
--- ──────────────────────────────────────────────────────────────
--- 3. CLASSES (sub-unit of a course; each has a teacher)
--- ──────────────────────────────────────────────────────────────
+CREATE POLICY "Admins can insert users" ON public.users
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================
+-- 2. CLASSES TABLE
+-- ============================================
 CREATE TABLE public.classes (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id     uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-  class_name    text NOT NULL,
-  section       text,
-  academic_year text,
-  teacher_id    uuid REFERENCES public.users(id) ON DELETE SET NULL,  -- teacher assigned per class
-  created_at    timestamptz DEFAULT now() NOT NULL,
-  updated_at    timestamptz DEFAULT now() NOT NULL
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  class_name TEXT NOT NULL,
+  teacher_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  section TEXT,
+  academic_year TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated can view classes" ON public.classes FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Admins can manage classes"       ON public.classes FOR ALL USING (public.get_my_role() = 'admin');
-CREATE TRIGGER classes_updated_at BEFORE UPDATE ON public.classes FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-CREATE INDEX idx_classes_course_id  ON public.classes(course_id);
-CREATE INDEX idx_classes_teacher_id ON public.classes(teacher_id);
 
--- ──────────────────────────────────────────────────────────────
--- 4. COURSE ENROLLMENTS (student enrolled in course → all its classes)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.course_enrollments (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  course_id   uuid NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
-  student_id  uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
-  enrolled_by uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  enrolled_at timestamptz DEFAULT now() NOT NULL,
-  UNIQUE (course_id, student_id)
-);
-ALTER TABLE public.course_enrollments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Students view own enrollments"      ON public.course_enrollments FOR SELECT USING (student_id = auth.uid()::uuid);
-CREATE POLICY "Admins manage all enrollments"      ON public.course_enrollments FOR ALL   USING (public.get_my_role() = 'admin');
-CREATE POLICY "Teachers view course enrollments"   ON public.course_enrollments FOR SELECT USING (
-  EXISTS (SELECT 1 FROM public.classes WHERE course_id = course_enrollments.course_id AND teacher_id = auth.uid()::uuid)
-);
-CREATE INDEX idx_enrollments_course_id  ON public.course_enrollments(course_id);
-CREATE INDEX idx_enrollments_student_id ON public.course_enrollments(student_id);
+CREATE POLICY "Everyone can view classes" ON public.classes
+  FOR SELECT USING (true);
 
--- ──────────────────────────────────────────────────────────────
--- 5. STUDENT INVITES (admin pre-registers students)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.student_invites (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_code text UNIQUE NOT NULL,
-  full_name    text NOT NULL,
-  course_id    uuid REFERENCES public.courses(id) ON DELETE SET NULL,  -- course to auto-enroll on signup
-  shift        text CHECK (shift IN ('morning','afternoon','evening', NULL)),
-  user_id      uuid UNIQUE REFERENCES public.users(id) ON DELETE SET NULL,
-  claimed_at   timestamptz,
-  created_by   uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at   timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.student_invites ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage student invites" ON public.student_invites FOR ALL USING (public.get_my_role() = 'admin');
-CREATE POLICY "Students can view own invite"      ON public.student_invites FOR SELECT USING (user_id = auth.uid()::uuid);
-CREATE INDEX idx_student_invites_code    ON public.student_invites(student_code);
-CREATE INDEX idx_student_invites_user_id ON public.student_invites(user_id);
+CREATE POLICY "Admins can manage classes" ON public.classes
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
 
--- ──────────────────────────────────────────────────────────────
--- 6. TEACHER INVITES
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.teacher_invites (
-  id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  teacher_code text UNIQUE NOT NULL,
-  full_name    text NOT NULL,
-  user_id      uuid UNIQUE REFERENCES public.users(id) ON DELETE SET NULL,
-  claimed_at   timestamptz,
-  created_by   uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at   timestamptz DEFAULT now() NOT NULL
+-- ============================================
+-- 3. STUDENTS TABLE
+-- ============================================
+CREATE TABLE public.students (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  student_id TEXT UNIQUE NOT NULL,
+  class_id UUID REFERENCES public.classes(id) ON DELETE SET NULL,
+  enrollment_date TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-ALTER TABLE public.teacher_invites ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can manage teacher invites" ON public.teacher_invites FOR ALL USING (public.get_my_role() = 'admin');
-CREATE POLICY "Teachers can view own invite"      ON public.teacher_invites FOR SELECT USING (user_id = auth.uid()::uuid);
-CREATE INDEX idx_teacher_invites_code    ON public.teacher_invites(teacher_code);
-CREATE INDEX idx_teacher_invites_user_id ON public.teacher_invites(user_id);
 
--- ──────────────────────────────────────────────────────────────
--- 7. LIVE CLASSES (keyed to class_id — teacher starts from their class)
--- ──────────────────────────────────────────────────────────────
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Students can view own data" ON public.students
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Teachers can view their class students" ON public.students
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.classes c
+      WHERE c.id = class_id
+      AND c.teacher_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Admins can view all students" ON public.students
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================
+-- 4. COURSES TABLE (Subjects)
+-- ============================================
+CREATE TABLE public.courses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  description TEXT,
+  class_id UUID NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
+  teacher_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.courses ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Everyone can view courses" ON public.courses
+  FOR SELECT USING (true);
+
+CREATE POLICY "Teachers can manage their courses" ON public.courses
+  FOR ALL USING (teacher_id = auth.uid());
+
+CREATE POLICY "Admins can manage all courses" ON public.courses
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- ============================================
+-- 5. LIVE CLASSES TABLE
+-- ============================================
 CREATE TABLE public.live_classes (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id         uuid REFERENCES public.classes(id) ON DELETE CASCADE,  -- nullable: ad-hoc sessions have no class
-  teacher_id       uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
-  room_id          text UNIQUE NOT NULL,
-  title            text NOT NULL,
-  scheduled_at     timestamptz,
-  start_time       timestamptz,
-  end_time         timestamptz,
-  status           text DEFAULT 'scheduled' CHECK (status IN ('scheduled','live','ended')),
-  -- Zoom integration fields
-  zoom_meeting_id  text,
-  zoom_join_url    text,
-  zoom_start_url   text,
-  -- Recording (YouTube URL stored here after worker uploads)
-  recording_url    text,
-  created_at       timestamptz DEFAULT now() NOT NULL
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  room_id TEXT UNIQUE NOT NULL,
+  title TEXT NOT NULL,
+  scheduled_at TIMESTAMPTZ,
+  start_time TIMESTAMPTZ,
+  end_time TIMESTAMPTZ,
+  status TEXT DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'live', 'ended')),
+  recording_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
 ALTER TABLE public.live_classes ENABLE ROW LEVEL SECURITY;
--- Students enrolled in the course that owns the class can view
-CREATE POLICY "Students can view live classes for enrolled courses" ON public.live_classes
+
+CREATE POLICY "Students can view classes of their courses" ON public.live_classes
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.classes cl
-      JOIN public.course_enrollments ce ON ce.course_id = cl.course_id
-      WHERE cl.id = class_id AND ce.student_id = auth.uid()::uuid
+      SELECT 1 FROM public.courses c
+      JOIN public.students s ON s.class_id = c.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()
     )
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher','admin'))
   );
-CREATE POLICY "Teachers can manage their live classes" ON public.live_classes FOR ALL USING (teacher_id = auth.uid()::uuid);
-CREATE POLICY "Admins can manage all live classes"     ON public.live_classes FOR ALL USING (public.get_my_role() = 'admin');
-CREATE INDEX idx_live_classes_class_id   ON public.live_classes(class_id);
-CREATE INDEX idx_live_classes_teacher_id ON public.live_classes(teacher_id);
 
--- ──────────────────────────────────────────────────────────────
--- 8. MATERIALS (class level)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.materials (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id    uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-  teacher_id  uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
-  title       text NOT NULL,
-  description text,                                        -- optional notes / clickable links
-  file_url    text NOT NULL,
-  file_type   text DEFAULT 'file',
-  created_at  timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Enrolled students view class materials" ON public.materials
+CREATE POLICY "Teachers can manage their live classes" ON public.live_classes
+  FOR ALL USING (teacher_id = auth.uid());
+
+CREATE POLICY "Admins can view all live classes" ON public.live_classes
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.classes cl
-      JOIN public.course_enrollments ce ON ce.course_id = cl.course_id
-      WHERE cl.id = class_id AND ce.student_id = auth.uid()::uuid
-    )
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher','admin'))
-  );
-CREATE POLICY "Teachers manage own materials" ON public.materials FOR ALL USING (teacher_id = auth.uid()::uuid);
-CREATE POLICY "Admins manage all materials"   ON public.materials FOR ALL USING (public.get_my_role() = 'admin');
-CREATE INDEX idx_materials_class_id   ON public.materials(class_id);
-CREATE INDEX idx_materials_teacher_id ON public.materials(teacher_id);
-
--- ──────────────────────────────────────────────────────────────
--- 9. ASSIGNMENTS (class level)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.assignments (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id    uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-  teacher_id  uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
-  title       text NOT NULL,
-  description text,
-  file_url    text,
-  due_date    timestamptz NOT NULL,
-  max_score   numeric DEFAULT 100,
-  created_at  timestamptz DEFAULT now() NOT NULL,
-  updated_at  timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Enrolled students view class assignments" ON public.assignments
-  FOR SELECT USING (
-    EXISTS (
-      SELECT 1 FROM public.classes cl
-      JOIN public.course_enrollments ce ON ce.course_id = cl.course_id
-      WHERE cl.id = class_id AND ce.student_id = auth.uid()::uuid
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role = 'admin'
     )
   );
-CREATE POLICY "Teachers manage their assignments" ON public.assignments FOR ALL USING (teacher_id = auth.uid()::uuid);
-CREATE POLICY "Admins manage all assignments"     ON public.assignments FOR ALL USING (public.get_my_role() = 'admin');
-CREATE TRIGGER assignments_updated_at BEFORE UPDATE ON public.assignments FOR EACH ROW EXECUTE FUNCTION update_updated_at();
-CREATE INDEX idx_assignments_class_id   ON public.assignments(class_id);
-CREATE INDEX idx_assignments_teacher_id ON public.assignments(teacher_id);
 
--- ──────────────────────────────────────────────────────────────
--- 10. SUBMISSIONS
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.submissions (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  assignment_id uuid NOT NULL REFERENCES public.assignments(id) ON DELETE CASCADE,
-  student_id    uuid NOT NULL REFERENCES public.users(id)       ON DELETE CASCADE,
-  content       text,
-  file_url      text,
-  submitted_at  timestamptz DEFAULT now(),
-  status        text DEFAULT 'submitted',
-  score         numeric,
-  feedback      text,
-  graded_at     timestamptz,
-  graded_by     uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  created_at    timestamptz DEFAULT now() NOT NULL,
-  UNIQUE (assignment_id, student_id)
+-- ============================================
+-- 6. ATTENDANCE TABLE
+-- ============================================
+CREATE TABLE public.attendance (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  live_class_id UUID NOT NULL REFERENCES public.live_classes(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  join_time TIMESTAMPTZ DEFAULT NOW(),
+  leave_time TIMESTAMPTZ,
+  status TEXT DEFAULT 'present' CHECK (status IN ('present', 'absent', 'late')),
+  duration_minutes INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
-ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Students manage own submissions"        ON public.submissions FOR ALL    USING (student_id = auth.uid()::uuid);
-CREATE POLICY "Teachers view and grade submissions"    ON public.submissions FOR SELECT USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()::uuid));
-CREATE POLICY "Teachers update (grade) submissions"    ON public.submissions FOR UPDATE USING (EXISTS (SELECT 1 FROM public.assignments WHERE id = assignment_id AND teacher_id = auth.uid()::uuid));
-CREATE POLICY "Admins manage all submissions"          ON public.submissions FOR ALL    USING (public.get_my_role() = 'admin');
-CREATE INDEX idx_submissions_assignment_id ON public.submissions(assignment_id);
-CREATE INDEX idx_submissions_student_id    ON public.submissions(student_id);
 
--- ──────────────────────────────────────────────────────────────
--- 11. ATTENDANCE (via live class → class level)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE IF NOT EXISTS public.attendance (
-  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  live_class_id    uuid NOT NULL REFERENCES public.live_classes(id) ON DELETE CASCADE,
-  student_id       uuid NOT NULL REFERENCES public.users(id)        ON DELETE CASCADE,
-  join_time        timestamptz DEFAULT now(),
-  leave_time       timestamptz,
-  duration_minutes integer,
-  status           text DEFAULT 'present' CHECK (status IN ('present','absent','late')),
-  created_at       timestamptz DEFAULT now() NOT NULL,
-  UNIQUE (live_class_id, student_id)
-);
 ALTER TABLE public.attendance ENABLE ROW LEVEL SECURITY;
--- Students can fully manage their own attendance records (INSERT on join, UPDATE on leave)
-DROP POLICY IF EXISTS "Students manage own attendance"   ON public.attendance;
-DROP POLICY IF EXISTS "Students view own attendance"     ON public.attendance;
-DROP POLICY IF EXISTS "System can record attendance"     ON public.attendance;
-DROP POLICY IF EXISTS "Teachers manage attendance"       ON public.attendance;
-DROP POLICY IF EXISTS "Admins view all attendance"       ON public.attendance;
-DROP POLICY IF EXISTS "Admins manage all attendance"     ON public.attendance;
-CREATE POLICY "Students manage own attendance" ON public.attendance
-  FOR ALL USING (student_id = auth.uid()::uuid) WITH CHECK (student_id = auth.uid()::uuid);
-CREATE POLICY "Teachers manage attendance"     ON public.attendance
-  FOR ALL USING (EXISTS (SELECT 1 FROM public.live_classes WHERE id = live_class_id AND teacher_id = auth.uid()::uuid));
-CREATE POLICY "Admins manage all attendance"   ON public.attendance
-  FOR ALL USING (public.get_my_role() = 'admin');
-CREATE INDEX IF NOT EXISTS idx_attendance_student_id    ON public.attendance(student_id);
-CREATE INDEX IF NOT EXISTS idx_attendance_live_class_id ON public.attendance(live_class_id);
 
--- ──────────────────────────────────────────────────────────────
--- 12. SCHEDULES (timetable per class)
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.schedules (
-  id         uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id   uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-  day        text NOT NULL CHECK (day IN ('Sun','Mon','Tue','Wed','Thu','Fri','Sat')),
-  start_time time NOT NULL,
-  end_time   time NOT NULL,
-  room       text,
-  created_at timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.schedules ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Authenticated can view schedules" ON public.schedules FOR SELECT USING (auth.uid() IS NOT NULL);
-CREATE POLICY "Admins can manage schedules"      ON public.schedules FOR ALL USING (public.get_my_role() = 'admin');
-CREATE INDEX idx_schedules_class_id ON public.schedules(class_id);
-
--- ──────────────────────────────────────────────────────────────
--- 13. MESSAGES + PII FLAGGING
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.messages (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  sender_id   uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  receiver_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
-  content     text NOT NULL CHECK (char_length(content) BETWEEN 1 AND 5000),
-  is_read     boolean DEFAULT false NOT NULL,
-  is_flagged  boolean DEFAULT false NOT NULL,  -- PII detected
-  flag_reason text,                            -- what was detected
-  created_at  timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users view own messages"       ON public.messages FOR SELECT USING (auth.uid()::uuid = sender_id OR auth.uid()::uuid = receiver_id);
-CREATE POLICY "Users send messages"           ON public.messages FOR INSERT WITH CHECK (auth.uid()::uuid = sender_id);
-CREATE POLICY "Users delete own messages"     ON public.messages FOR DELETE USING (auth.uid()::uuid = sender_id);
-CREATE POLICY "Admins view all messages"      ON public.messages FOR SELECT USING (public.get_my_role() = 'admin');
-CREATE POLICY "Service role can flag messages" ON public.messages FOR UPDATE USING (true); -- for PII API
-CREATE INDEX idx_messages_sender_id   ON public.messages(sender_id);
-CREATE INDEX idx_messages_receiver_id ON public.messages(receiver_id);
-CREATE INDEX idx_messages_created_at  ON public.messages(created_at DESC);
-CREATE INDEX idx_messages_flagged     ON public.messages(is_flagged) WHERE is_flagged = true;
-
--- ──────────────────────────────────────────────────────────────
--- 14. NOTIFICATIONS
--- ──────────────────────────────────────────────────────────────
-CREATE TABLE public.notifications (
-  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     uuid REFERENCES public.users(id) ON DELETE CASCADE,
-  title       text NOT NULL,
-  message     text NOT NULL,
-  type        text DEFAULT 'info' CHECK (type IN ('info','announcement','assignment','class_start','grade','system','chat_flag')),
-  sender_id   uuid REFERENCES public.users(id) ON DELETE SET NULL,
-  target_role text CHECK (target_role IN ('admin','teacher','student','all')),
-  class_id    uuid REFERENCES public.classes(id) ON DELETE CASCADE,
-  is_read     boolean DEFAULT false NOT NULL,
-  link        text,
-  created_at  timestamptz DEFAULT now() NOT NULL
-);
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Users view their notifications" ON public.notifications
+CREATE POLICY "Students can view own attendance" ON public.attendance
   FOR SELECT USING (
-    user_id = auth.uid()::uuid
-    OR target_role = 'all'
-    OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role = target_role)
+    EXISTS (
+      SELECT 1 FROM public.students s
+      WHERE s.id = student_id AND s.user_id = auth.uid()
+    )
   );
-CREATE POLICY "Users mark own notifications read"        ON public.notifications FOR UPDATE USING (user_id = auth.uid()::uuid);
-CREATE POLICY "Teachers and admins create notifications" ON public.notifications FOR INSERT WITH CHECK (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('admin','teacher')));
-CREATE POLICY "System can create notifications"          ON public.notifications FOR INSERT WITH CHECK (true);
-CREATE INDEX idx_notifications_user_id    ON public.notifications(user_id);
+
+CREATE POLICY "Teachers can manage attendance for their classes" ON public.attendance
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.live_classes lc
+      WHERE lc.id = live_class_id AND lc.teacher_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "System can create attendance" ON public.attendance
+  FOR INSERT WITH CHECK (true);
+
+-- ============================================
+-- 7. ASSIGNMENTS TABLE
+-- ============================================
+CREATE TABLE public.assignments (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  file_url TEXT,
+  due_date TIMESTAMPTZ NOT NULL,
+  max_score INTEGER DEFAULT 100,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.assignments ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Students can view assignments for their courses" ON public.assignments
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.courses c
+      JOIN public.students s ON s.class_id = c.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Teachers can manage their assignments" ON public.assignments
+  FOR ALL USING (teacher_id = auth.uid());
+
+-- ============================================
+-- 8. SUBMISSIONS TABLE
+-- ============================================
+CREATE TABLE public.submissions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  assignment_id UUID NOT NULL REFERENCES public.assignments(id) ON DELETE CASCADE,
+  student_id UUID NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  file_url TEXT,
+  content TEXT,
+  submitted_at TIMESTAMPTZ DEFAULT NOW(),
+  grade INTEGER,
+  feedback TEXT,
+  graded_at TIMESTAMPTZ,
+  graded_by UUID REFERENCES public.users(id),
+  status TEXT DEFAULT 'submitted' CHECK (status IN ('submitted', 'graded', 'late')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Students can view and create own submissions" ON public.submissions
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM public.students s
+      WHERE s.id = student_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Teachers can view submissions for their assignments" ON public.submissions
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.assignments a
+      WHERE a.id = assignment_id AND a.teacher_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Teachers can update submissions for their assignments" ON public.submissions
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.assignments a
+      WHERE a.id = assignment_id AND a.teacher_id = auth.uid()
+    )
+  );
+
+-- ============================================
+-- 9. NOTIFICATIONS TABLE
+-- ============================================
+CREATE TABLE public.notifications (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT NOT NULL,
+  message TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('announcement', 'assignment', 'class_start', 'grade', 'system')),
+  sender_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  target_role TEXT CHECK (target_role IN ('admin', 'teacher', 'student', 'all')),
+  class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+  is_read BOOLEAN DEFAULT false,
+  link TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view their notifications" ON public.notifications
+  FOR SELECT USING (
+    user_id = auth.uid() OR
+    target_role = 'all' OR
+    EXISTS (
+      SELECT 1 FROM public.users u
+      WHERE u.id = auth.uid() AND u.role = target_role
+    ) OR
+    EXISTS (
+      SELECT 1 FROM public.students s
+      WHERE s.user_id = auth.uid() AND s.class_id = class_id
+    )
+  );
+
+CREATE POLICY "Users can update own notifications" ON public.notifications
+  FOR UPDATE USING (user_id = auth.uid());
+
+CREATE POLICY "Admins and teachers can create notifications" ON public.notifications
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND role IN ('admin', 'teacher')
+    )
+  );
+
+-- ============================================
+-- 10. MATERIALS TABLE
+-- ============================================
+CREATE TABLE public.materials (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  course_id UUID NOT NULL REFERENCES public.courses(id) ON DELETE CASCADE,
+  teacher_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  file_url TEXT NOT NULL,
+  file_type TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Students can view materials for their courses" ON public.materials
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.courses c
+      JOIN public.students s ON s.class_id = c.class_id
+      WHERE c.id = course_id AND s.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Teachers can manage their materials" ON public.materials
+  FOR ALL USING (teacher_id = auth.uid());
+
+-- ============================================
+-- INDEXES for performance
+-- ============================================
+CREATE INDEX idx_students_user_id ON public.students(user_id);
+CREATE INDEX idx_students_class_id ON public.students(class_id);
+CREATE INDEX idx_courses_class_id ON public.courses(class_id);
+CREATE INDEX idx_live_classes_course_id ON public.live_classes(course_id);
+CREATE INDEX idx_attendance_student_id ON public.attendance(student_id);
+CREATE INDEX idx_assignments_course_id ON public.assignments(course_id);
+CREATE INDEX idx_submissions_assignment_id ON public.submissions(assignment_id);
+CREATE INDEX idx_notifications_user_id ON public.notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON public.notifications(created_at DESC);
 
--- ──────────────────────────────────────────────────────────────
--- VALIDATE INVITE FUNCTIONS
--- ──────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.validate_student_code(p_code text)
-RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
-  SELECT CASE
-    WHEN si.id IS NULL          THEN jsonb_build_object('valid', false, 'message', 'Invalid Student ID.')
-    WHEN si.user_id IS NOT NULL THEN jsonb_build_object('valid', false, 'message', 'This Student ID has already been used.')
-    ELSE jsonb_build_object('valid', true, 'name', si.full_name, 'course_id', si.course_id, 'shift', si.shift)
-  END
-  FROM (SELECT * FROM public.student_invites WHERE student_code = p_code) si
-  RIGHT JOIN (SELECT 1) dummy ON true LIMIT 1;
-$$;
+-- ============================================
+-- FUNCTIONS & TRIGGERS
+-- ============================================
 
-CREATE OR REPLACE FUNCTION public.validate_teacher_code(p_code text)
-RETURNS jsonb LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
-  SELECT CASE
-    WHEN ti.id IS NULL          THEN jsonb_build_object('valid', false, 'message', 'Invalid Teacher ID.')
-    WHEN ti.user_id IS NOT NULL THEN jsonb_build_object('valid', false, 'message', 'This Teacher ID has already been used.')
-    ELSE jsonb_build_object('valid', true, 'name', ti.full_name)
-  END
-  FROM (SELECT * FROM public.teacher_invites WHERE teacher_code = p_code) ti
-  RIGHT JOIN (SELECT 1) dummy ON true LIMIT 1;
-$$;
-
--- ──────────────────────────────────────────────────────────────
--- TRIGGER: Auto-create user profile + auto-enroll on signup
--- ──────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.handle_new_user()
+-- Function to update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
-DECLARE
-  v_role      text;
-  v_course_id uuid;
 BEGIN
-  v_role := COALESCE(NEW.raw_user_meta_data->>'role', 'student');
-
-  INSERT INTO public.users (id, email, full_name, role)
-  VALUES (
-    NEW.id, NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email,'@',1)),
-    v_role
-  ) ON CONFLICT (id) DO NOTHING;
-
-  -- If student, auto-enroll in the course from their invite (matched by student_code)
-  IF v_role = 'student' THEN
-    -- Look up the invite that was claimed for this user (user_id was set during claim)
-    SELECT course_id INTO v_course_id
-    FROM public.student_invites
-    WHERE user_id = NEW.id
-    LIMIT 1;
-
-    IF v_course_id IS NOT NULL THEN
-      INSERT INTO public.course_enrollments (course_id, student_id, enrolled_by)
-      VALUES (v_course_id, NEW.id, NULL)
-      ON CONFLICT (course_id, student_id) DO NOTHING;
-    END IF;
-  END IF;
-
+  NEW.updated_at = NOW();
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- Triggers for updated_at
+CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- ──────────────────────────────────────────────────────────────
--- STORAGE BUCKETS
--- ──────────────────────────────────────────────────────────────
-INSERT INTO storage.buckets (id, name, public) VALUES ('avatars',     'avatars',     true)  ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('submissions', 'submissions', false) ON CONFLICT (id) DO NOTHING;
-INSERT INTO storage.buckets (id, name, public) VALUES ('materials',   'materials',   false) ON CONFLICT (id) DO NOTHING;
+CREATE TRIGGER update_classes_updated_at BEFORE UPDATE ON public.classes
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE POLICY "Avatars public read"         ON storage.objects FOR SELECT USING (bucket_id = 'avatars');
-CREATE POLICY "Users upload own avatar"     ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
-CREATE POLICY "Users update own avatar"     ON storage.objects FOR UPDATE USING  (bucket_id = 'avatars' AND auth.uid()::text = (storage.foldername(name))[1]);
-CREATE POLICY "Students upload submissions" ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'submissions' AND auth.uid() IS NOT NULL);
-CREATE POLICY "Auth users view submissions" ON storage.objects FOR SELECT USING (bucket_id = 'submissions' AND (auth.uid()::text = (storage.foldername(name))[2] OR EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher','admin'))));
-CREATE POLICY "Teachers upload materials"   ON storage.objects FOR INSERT WITH CHECK (bucket_id = 'materials' AND EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid()::uuid AND role IN ('teacher','admin')));
-CREATE POLICY "Auth users view materials"   ON storage.objects FOR SELECT USING (bucket_id = 'materials' AND auth.uid() IS NOT NULL);
+CREATE TRIGGER update_assignments_updated_at BEFORE UPDATE ON public.assignments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- Enable Realtime (run in SQL Editor after setup):
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.notifications;
--- ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
--- Done ✅  Schema ready for Latifia Quraner Alo E-Classroom v2
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- ============================================
+-- STORAGE BUCKETS & POLICIES
+-- ============================================
+-- NOTE: Storage buckets must be created via Supabase Dashboard first
+-- Then run these policies in SQL Editor
+
+-- Storage policies for avatars (public)
+-- CREATE POLICY "Avatar images are publicly accessible"
+--   ON storage.objects FOR SELECT
+--   USING (bucket_id = 'avatars');
+
+-- CREATE POLICY "Users can upload their own avatar"
+--   ON storage.objects FOR INSERT
+--   WITH CHECK (
+--     bucket_id = 'avatars' AND
+--     auth.uid()::text = (storage.foldername(name))[1]
+--   );
+
+-- CREATE POLICY "Users can update their own avatar"
+--   ON storage.objects FOR UPDATE
+--   USING (
+--     bucket_id = 'avatars' AND
+--     auth.uid()::text = (storage.foldername(name))[1]
+--   );
+
+-- Storage policies for assignments (private)
+-- CREATE POLICY "Teachers can upload assignments"
+--   ON storage.objects FOR INSERT
+--   WITH CHECK (
+--     bucket_id = 'assignments' AND
+--     EXISTS (
+--       SELECT 1 FROM public.users
+--       WHERE id = auth.uid() AND role = 'teacher'
+--     )
+--   );
+
+-- CREATE POLICY "Students can view assignments for their courses"
+--   ON storage.objects FOR SELECT
+--   USING (bucket_id = 'assignments');
+
+-- Storage policies for submissions (private)
+-- CREATE POLICY "Students can upload submissions"
+--   ON storage.objects FOR INSERT
+--   WITH CHECK (
+--     bucket_id = 'submissions' AND
+--     auth.uid()::text = (storage.foldername(name))[1]
+--   );
+
+-- CREATE POLICY "Students can view own submissions"
+--   ON storage.objects FOR SELECT
+--   USING (
+--     bucket_id = 'submissions' AND
+--     auth.uid()::text = (storage.foldername(name))[1]
+--   );
+
+-- CREATE POLICY "Teachers can view all submissions"
+--   ON storage.objects FOR SELECT
+--   USING (
+--     bucket_id = 'submissions' AND
+--     EXISTS (
+--       SELECT 1 FROM public.users
+--       WHERE id = auth.uid() AND role = 'teacher'
+--     )
+--   );
+
+-- Storage policies for materials (private)
+-- CREATE POLICY "Teachers can upload materials"
+--   ON storage.objects FOR INSERT
+--   WITH CHECK (
+--     bucket_id = 'materials' AND
+--     EXISTS (
+--       SELECT 1 FROM public.users
+--       WHERE id = auth.uid() AND role = 'teacher'
+--     )
+--   );
+
+-- CREATE POLICY "Students can view materials for their courses"
+--   ON storage.objects FOR SELECT
+--   USING (bucket_id = 'materials');
+
+-- ============================================
+-- END OF SCHEMA
+-- ============================================
+
+-- NOTES:
+-- 1. Create storage buckets manually in Supabase Dashboard:
+--    - avatars (public)
+--    - assignments (private)
+--    - submissions (private)
+--    - materials (private)
+--
+-- 2. After creating buckets, uncomment and run the storage policies above
+--
+-- 3. Enable Realtime for notifications table in Database > Replication
+--
+-- 4. Your database is now ready for the E-Classroom LMS!

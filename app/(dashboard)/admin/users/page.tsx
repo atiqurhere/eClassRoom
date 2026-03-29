@@ -1,329 +1,196 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { Plus, Search, Pencil, Trash2, RefreshCw, KeyRound, BarChart2 } from 'lucide-react'
-import Link from 'next/link'
-import { createClient } from '@/lib/supabase/client'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Input, Select } from '@/components/ui/Input'
-import { Modal, ConfirmModal } from '@/components/ui/Modal'
-import { RoleBadge } from '@/components/ui/Badge'
-import { AvatarWithName } from '@/components/ui/Avatar'
-import { SectionCard } from '@/components/ui/Card'
-import { SkeletonRow } from '@/components/ui/Loading'
-import { CsvImport } from '@/components/admin/CsvImport'
-import { toast } from 'sonner'
-import { useForm } from 'react-hook-form'
-
-interface User {
-  id: string
-  email: string
-  full_name: string
-  role: string
-  created_at: string
-  student_id?: string
-}
+import { UserForm } from '@/components/admin/UserForm'
+import { Plus, User, Search, Filter } from 'lucide-react'
+import { Input } from '@/components/ui/Input'
+import { useState } from 'react'
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [roleFilter, setRoleFilter] = useState('')
-  const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editUser, setEditUser] = useState<User | null>(null)
-  const [deleteUser, setDeleteUser] = useState<User | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const [resetUser, setResetUser] = useState<User | null>(null)
-  const [newPwd, setNewPwd] = useState('')
-  const [resetting, setResetting] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roleFilter, setRoleFilter] = useState('all')
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<any>()
+  // Mock data - replace with Supabase queries
+  const users = [
+    {
+      id: '1',
+      full_name: 'John Smith',
+      email: 'john.smith@school.edu',
+      role: 'teacher',
+      created_at: '2026-01-15',
+      last_login: '2026-03-16',
+    },
+    {
+      id: '2',
+      full_name: 'Emily Johnson',
+      email: 'emily.johnson@student.edu',
+      role: 'student',
+      created_at: '2026-02-01',
+      last_login: '2026-03-17',
+      student_id: 'STU001',
+    },
+    {
+      id: '3',
+      full_name: 'Michael Davis',
+      email: 'michael.davis@school.edu',
+      role: 'teacher',
+      created_at: '2026-01-20',
+      last_login: '2026-03-15',
+    },
+    {
+      id: '4',
+      full_name: 'Sarah Wilson',
+      email: 'sarah.wilson@student.edu',
+      role: 'student',
+      created_at: '2026-02-10',
+      last_login: '2026-03-16',
+      student_id: 'STU002',
+    },
+  ]
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('users')
-      .select('id, email, full_name, role, created_at')
-      .order('created_at', { ascending: false })
-    setUsers(data || [])
-    setLoading(false)
-  }, [])
-
-  useEffect(() => { fetchUsers() }, [fetchUsers])
-
-  const filtered = users.filter(u => {
-    const matchSearch = !search || u.full_name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase())
-    const matchRole = !roleFilter || u.role === roleFilter
-    return matchSearch && matchRole
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesRole = roleFilter === 'all' || user.role === roleFilter
+    return matchesSearch && matchesRole
   })
 
-  const handleCreate = async (data: any) => {
-    try {
-      setSaving(true)
-      const res = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success('User created successfully')
-      setShowCreateModal(false)
-      reset()
-      fetchUsers()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to create user')
-    } finally {
-      setSaving(false)
+  const getRoleBadge = (role: string) => {
+    const styles = {
+      admin: 'bg-purple-100 text-purple-800',
+      teacher: 'bg-blue-100 text-blue-800',
+      student: 'bg-green-100 text-green-800',
     }
-  }
-
-  const handleUpdate = async (data: any) => {
-    if (!editUser) return
-    try {
-      setSaving(true)
-      const supabase = createClient()
-      const { error } = await supabase
-        .from('users')
-        .update({ full_name: data.full_name, role: data.role })
-        .eq('id', editUser.id)
-      if (error) throw error
-      toast.success('User updated')
-      setEditUser(null)
-      fetchUsers()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to update user')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!deleteUser) return
-    try {
-      setDeleting(true)
-      const res = await fetch(`/api/admin/users?id=${deleteUser.id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete')
-      toast.success('User deleted')
-      setDeleteUser(null)
-      fetchUsers()
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to delete user')
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  const handleResetPassword = async () => {
-    if (!resetUser || newPwd.length < 8) { toast.error('Password must be at least 8 chars'); return }
-    try {
-      setResetting(true)
-      const res = await fetch('/api/admin/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: resetUser.id, newPassword: newPwd }),
-      })
-      const json = await res.json()
-      if (!res.ok) throw new Error(json.error)
-      toast.success(`Password reset for ${resetUser.full_name}`)
-      setResetUser(null)
-      setNewPwd('')
-    } catch (err: any) {
-      toast.error(err.message || 'Reset failed')
-    } finally {
-      setResetting(false)
-    }
+    return (
+      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[role as keyof typeof styles]}`}>
+        {role.charAt(0).toUpperCase() + role.slice(1)}
+      </span>
+    )
   }
 
   return (
     <div className="space-y-6">
-      <div className="page-header flex items-center justify-between">
+      <div className="flex items-center justify-between">
         <div>
-          <h1>User Management</h1>
-          <p>Manage all students, teachers, and admins</p>
+          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-600 mt-1">Manage all users in the system</p>
         </div>
-        <Button variant="gradient" leftIcon={<Plus size={16} />} onClick={() => { reset(); setShowCreateModal(true) }}>
+        <Button onClick={() => setShowCreateForm(!showCreateForm)}>
+          <Plus size={16} className="mr-2" />
           Add User
         </Button>
       </div>
 
-      <CsvImport onDone={fetchUsers} />
+      {/* Create User Form */}
+      {showCreateForm && (
+        <div>
+          <UserForm onSuccess={() => setShowCreateForm(false)} />
+        </div>
+      )}
 
-      <SectionCard
-        title={`All Users (${filtered.length})`}
-        icon={undefined}
-        action={
-          <div className="flex items-center gap-3">
-            <div className="relative">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search users..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="form-input pl-8 text-sm"
-                style={{ width: 200, padding: '7px 12px 7px 32px', fontSize: '0.8125rem' }}
-              />
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+                />
+              </div>
             </div>
-            <select
-              value={roleFilter}
-              onChange={e => setRoleFilter(e.target.value)}
-              className="form-select text-sm"
-              style={{ width: 130, padding: '7px 30px 7px 12px', fontSize: '0.8125rem' }}
-            >
-              <option value="">All Roles</option>
-              <option value="admin">Admin</option>
-              <option value="teacher">Teacher</option>
-              <option value="student">Student</option>
-            </select>
-            <button onClick={fetchUsers} className="p-2 rounded-lg transition-colors" style={{ background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
-              <RefreshCw size={15} />
-            </button>
+            <div className="flex items-center space-x-2">
+              <Filter size={16} className="text-gray-400" />
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
+              >
+                <option value="all">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="teacher">Teacher</option>
+                <option value="student">Student</option>
+              </select>
+            </div>
           </div>
-        }
-      >
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>User</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Joined</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => <SkeletonRow key={i} />)
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                    No users found
-                  </td>
+        </CardContent>
+      </Card>
+
+      {/* Users Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Users ({filteredUsers.length})</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">User</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Role</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Student ID</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Created</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Last Login</th>
+                  <th className="text-left py-3 px-4 font-medium text-gray-700">Actions</th>
                 </tr>
-              ) : (
-                filtered.map(u => (
-                  <tr key={u.id}>
-                    <td><AvatarWithName name={u.full_name} size="sm" /></td>
-                    <td style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>{u.email}</td>
-                    <td><RoleBadge role={u.role} /></td>
-                    <td style={{ fontSize: '0.8125rem' }}>
-                      {new Date(u.created_at).toLocaleDateString()}
+              </thead>
+              <tbody>
+                {filteredUsers.map((user) => (
+                  <tr key={user.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-4 px-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="bg-gray-200 text-gray-600 p-2 rounded-full">
+                          <User size={16} />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-900">{user.full_name}</p>
+                          <p className="text-sm text-gray-600">{user.email}</p>
+                        </div>
+                      </div>
                     </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {u.role === 'student' && (
-                          <Link href={`/admin/students/${u.id}`}
-                            className="p-1.5 rounded-lg transition-colors"
-                            title="View Progress"
-                            style={{ color: '#22c55e', background: 'rgba(34,197,94,0.1)', display: 'flex' }}>
-                            <BarChart2 size={13} />
-                          </Link>
-                        )}
-                        <button
-                          onClick={() => { setEditUser(u); reset({ full_name: u.full_name, role: u.role }) }}
-                          className="p-1.5 rounded-lg transition-colors"
-                          style={{ color: 'var(--accent-blue)', background: 'rgba(79,142,247,0.1)' }}
-                        >
-                          <Pencil size={13} />
-                        </button>
-                        <button
-                          onClick={() => { setResetUser(u); setNewPwd('') }}
-                          className="p-1.5 rounded-lg transition-colors"
-                          title="Reset password"
-                          style={{ color: 'var(--accent-orange)', background: 'rgba(245,158,11,0.1)' }}
-                        >
-                          <KeyRound size={13} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteUser(u)}
-                          className="p-1.5 rounded-lg transition-colors"
-                          style={{ color: 'var(--accent-red)', background: 'rgba(239,68,68,0.1)' }}
-                        >
-                          <Trash2 size={13} />
-                        </button>
+                    <td className="py-4 px-4">
+                      {getRoleBadge(user.role)}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {(user as any).student_id || '-'}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-4 px-4 text-gray-600">
+                      {new Date(user.last_login).toLocaleDateString()}
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex space-x-2">
+                        <Button size="sm" variant="ghost">
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="ghost">
+                          View
+                        </Button>
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </SectionCard>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-      {/* Create Modal */}
-      <Modal isOpen={showCreateModal} onClose={() => setShowCreateModal(false)} title="Create New User" size="md"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</Button>
-            <Button variant="gradient" loading={saving} onClick={handleSubmit(handleCreate)}>Create User</Button>
-          </>
-        }
-      >
-        <form className="space-y-4">
-          <Input label="Full Name" placeholder="John Doe" error={errors.full_name?.message as string} {...register('full_name', { required: 'Name is required' })} />
-          <Input label="Email Address" type="email" placeholder="john@school.edu" error={errors.email?.message as string} {...register('email', { required: 'Email is required' })} />
-          <Input label="Password" type="password" placeholder="Min 8 characters" error={errors.password?.message as string} {...register('password', { required: true, minLength: 8 })} />
-          <Select
-            label="Role"
-            options={[{ value: 'student', label: '👨‍🎓 Student' }, { value: 'teacher', label: '👩‍🏫 Teacher' }, { value: 'admin', label: '👑 Admin' }]}
-            placeholder="Select role"
-            error={errors.role?.message as string}
-            {...register('role', { required: 'Role is required' })}
-          />
-          <Input label="Student ID (optional, for students)" placeholder="STU-2026-001" {...register('student_id')} />
-        </form>
-      </Modal>
-
-      {/* Edit Modal */}
-      <Modal isOpen={!!editUser} onClose={() => setEditUser(null)} title="Edit User" size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button variant="gradient" loading={saving} onClick={handleSubmit(handleUpdate)}>Save Changes</Button>
-          </>
-        }
-      >
-        <form className="space-y-4">
-          <Input label="Full Name" {...register('full_name', { required: true })} />
-          <Select
-            label="Role"
-            options={[{ value: 'student', label: '👨‍🎓 Student' }, { value: 'teacher', label: '👩‍🏫 Teacher' }, { value: 'admin', label: '👑 Admin' }]}
-            {...register('role')}
-          />
-        </form>
-      </Modal>
-
-      {/* Reset Password Modal */}
-      <Modal isOpen={!!resetUser} onClose={() => { setResetUser(null); setNewPwd('') }} title={`Reset Password — ${resetUser?.full_name}`} size="sm"
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => { setResetUser(null); setNewPwd('') }}>Cancel</Button>
-            <Button variant="primary" loading={resetting} leftIcon={<KeyRound size={15} />} onClick={handleResetPassword}>Reset Password</Button>
-          </>
-        }
-      >
-        <div className="space-y-3">
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Enter a new temporary password for this user. Ask them to change it after logging in.</p>
-          <Input label="New Password" type="password" placeholder="Min 8 characters" value={newPwd} onChange={e => setNewPwd(e.target.value)} />
-        </div>
-      </Modal>
-
-      {/* Delete confirm */}
-      <ConfirmModal
-        isOpen={!!deleteUser}
-        onClose={() => setDeleteUser(null)}
-        onConfirm={handleDelete}
-        title="Delete User"
-        message={`Are you sure you want to delete ${deleteUser?.full_name}? This action cannot be undone.`}
-        confirmLabel="Delete"
-        confirmVariant="danger"
-        loading={deleting}
-      />
+          {filteredUsers.length === 0 && (
+            <div className="text-center py-8">
+              <User size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600">No users found matching your criteria.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

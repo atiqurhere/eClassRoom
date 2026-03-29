@@ -25,9 +25,9 @@ export function NotificationBell() {
     }
   }
 
-  const handleNotificationClick = async (notification: any) => {
+  const handleNotificationClick = (notification: any) => {
     if (!notification.is_read) {
-      await markAsRead(notification.id)
+      markAsRead(notification.id)
     }
     if (notification.link) {
       window.location.href = notification.link

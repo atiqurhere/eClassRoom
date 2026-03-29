@@ -38,16 +38,18 @@ export const authService = {
     return authData.user
   },
 
-  // Sign in — returns user, session, and role
+  // Sign in
   async signIn(email: string, password: string) {
     const supabase = createClient()
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
     if (error) throw error
 
-    // Use SECURITY DEFINER function to bypass RLS — avoids recursive policy null-role bug
-    const { data: role } = await supabase.rpc('get_my_role')
-    return { ...data, role: role as string | null }
+    return data
   },
 
   // Sign out
@@ -61,20 +63,20 @@ export const authService = {
   async getCurrentUser() {
     const supabase = createClient()
 
-    const { data: { user } } = await supabase.auth.getUser()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
     if (!user) return null
 
-    // Fetch profile — use RPC for role to bypass recursive RLS, fallback to direct query
-    const [profileRes, rpcRes] = await Promise.all([
-      supabase.from('users').select('*').eq('id', user.id).single(),
-      supabase.rpc('get_my_role'),
-    ])
+    // Get user profile
+    const { data: profile } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-    if (!profileRes.data) return null
-
-    // Prefer the RPC role (bypasses RLS issues), fallback to profile.role
-    const role = (!rpcRes.error && rpcRes.data) ? rpcRes.data : profileRes.data.role
-    return { ...profileRes.data, role } as User
+    return profile as User | null
   },
 
   // Get current session

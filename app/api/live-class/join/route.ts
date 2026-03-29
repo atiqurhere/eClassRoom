@@ -5,12 +5,14 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
+    // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // v2 schema: role stored directly on users table, no separate students table
+    // Check user role (only students can join)
     const { data: profile } = await supabase
       .from('users')
       .select('role')
@@ -18,7 +20,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (!profile || profile.role !== 'student') {
-      return NextResponse.json({ error: 'Only students can join via this endpoint' }, { status: 403 })
+      return NextResponse.json({ error: 'Only students can join live classes' }, { status: 403 })
     }
 
     const body = await request.json()
@@ -28,15 +30,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Live class ID is required' }, { status: 400 })
     }
 
-    // v2: student_id = user.id directly (no separate students table)
+    // Get student record
+    const { data: studentRecord } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .single()
+
+    if (!studentRecord) {
+      return NextResponse.json({ error: 'Student record not found' }, { status: 404 })
+    }
+
+    // Create attendance record
     const { data: attendance, error: attendanceError } = await supabase
       .from('attendance')
-      .upsert({
+      .insert({
         live_class_id: liveClassId,
-        student_id:    user.id,
-        join_time:     new Date().toISOString(),
-        status:        'present',
-      }, { onConflict: 'live_class_id,student_id' })
+        student_id: studentRecord.id,
+        join_time: new Date().toISOString(),
+        status: 'present',
+      })
       .select()
       .single()
 

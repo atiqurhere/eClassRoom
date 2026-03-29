@@ -1,187 +1,190 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { FileText, Download, Calendar, CheckCircle, Clock, BookOpen, Award } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/Button'
-import { SectionCard } from '@/components/ui/Card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { SubmissionForm } from '@/components/assignments/SubmissionForm'
-import { Loading } from '@/components/ui/Loading'
-import { useParams } from 'next/navigation'
-import { proxyFileUrl } from '@/lib/utils/proxyUrl'
+import { Button } from '@/components/ui/Button'
+import { FileText, Download, Clock, CheckCircle } from 'lucide-react'
+import { useState } from 'react'
 
 export default function StudentClassDetailPage() {
-  const params = useParams()
-  const courseId = params.id as string
+  const [showSubmissionForm, setShowSubmissionForm] = useState<string | null>(null)
 
-  const [course, setCourse] = useState<any>(null)
-  const [assignments, setAssignments] = useState<any[]>([])
-  const [materials, setMaterials] = useState<any[]>([])
-  const [showSubmit, setShowSubmit] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [studentId, setStudentId] = useState<string | null>(null)
+  // Mock data - replace with Supabase queries
+  const classInfo = {
+    id: '1',
+    name: 'Mathematics',
+    teacher: 'Mr. Smith',
+  }
 
-  const fetchData = useCallback(async () => {
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    setStudentId(user.id)
+  const assignments = [
+    {
+      id: '1',
+      title: 'Algebra Assignment 5',
+      description: 'Solve algebraic equations and show your work',
+      dueDate: '2026-03-20T23:59',
+      maxScore: 100,
+      status: 'pending',
+      submitted: false,
+    },
+    {
+      id: '2',
+      title: 'Geometry Worksheet',
+      description: 'Complete geometry problems from chapter 8',
+      dueDate: '2026-03-25T23:59',
+      maxScore: 50,
+      status: 'submitted',
+      submitted: true,
+      grade: 45,
+      feedback: 'Good work! Minor calculation error in problem 5.',
+    },
+    {
+      id: '3',
+      title: 'Trigonometry Problems',
+      description: 'Practice trigonometric functions and identities',
+      dueDate: '2026-03-30T23:59',
+      maxScore: 75,
+      status: 'upcoming',
+      submitted: false,
+    },
+  ]
 
-    const [courseRes, assignRes, matsRes] = await Promise.all([
-      supabase.from('courses').select('*, classes(class_name, section), users!courses_teacher_id_fkey(full_name)').eq('id', courseId).single(),
-      supabase.from('assignments')
-        .select('*, submissions!left(id, score, feedback, content, file_url, created_at, student_id)')
-        .eq('course_id', courseId)
-        .order('due_date'),
-      supabase.from('course_materials').select('*').eq('course_id', courseId).order('created_at', { ascending: false }),
-    ])
-    setCourse(courseRes.data)
-    // Filter submissions for this student
-    const asgns = (assignRes.data || []).map((a: any) => ({
-      ...a,
-      mySubmission: (a.submissions || []).find((s: any) => s.student_id === user.id) || null,
-    }))
-    setAssignments(asgns)
-    setMaterials(matsRes.data || [])
-    setLoading(false)
-  }, [courseId])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
-  if (loading) return <Loading text="Loading course..." />
-
-  const courseName = course?.name || 'Course'
-  const teacherName = (course?.users as any)?.full_name || 'Unassigned'
-  const className = course?.classes ? `${course.classes.class_name}${course.classes.section ? ' — ' + course.classes.section : ''}` : ''
+  const materials = [
+    { id: '1', title: 'Chapter 8 Notes', type: 'PDF', size: '2.3 MB' },
+    { id: '2', title: 'Practice Problems', type: 'PDF', size: '1.8 MB' },
+    { id: '3', title: 'Formula Sheet', type: 'PDF', size: '0.5 MB' },
+  ]
 
   return (
     <div className="space-y-6">
-      <div className="page-header">
-        <h1>{courseName}</h1>
-        <p>{className} · Teacher: {teacherName}</p>
+      <div>
+        <h1 className="text-3xl font-bold text-gray-900">{classInfo.name}</h1>
+        <p className="text-gray-600">Teacher: {classInfo.teacher}</p>
       </div>
 
-      {/* Assignments */}
-      <SectionCard title={`Assignments (${assignments.length})`} icon={<BookOpen size={15} style={{ color: 'var(--accent-blue)' }} />}>
-        {assignments.length === 0 ? (
-          <div className="empty-state py-8">
-            <div className="empty-state-icon"><BookOpen size={24} /></div>
-            <h3>No assignments yet</h3>
-            <p>Your teacher hasn&apos;t posted any assignments yet</p>
-          </div>
-        ) : (
-          <div className="space-y-3 p-4">
-            {assignments.map(a => {
-              const isOverdue = new Date() > new Date(a.due_date)
-              const sub = a.mySubmission
-              const isShowing = showSubmit === a.id
+      {/* Assignments Section */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Assignments</h2>
+        <div className="space-y-4">
+          {assignments.map((assignment) => {
+            const isOverdue = new Date() > new Date(assignment.dueDate)
+            const isShowingSubmission = showSubmissionForm === assignment.id
 
-              return (
-                <div key={a.id} className="glass-card p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>{a.title}</p>
-                    <div className="flex-shrink-0">
-                      {sub ? (
-                        <span className="badge badge-green"><CheckCircle size={11} className="mr-1" />Submitted</span>
-                      ) : isOverdue ? (
-                        <span className="badge badge-red"><Clock size={11} className="mr-1" />Overdue</span>
-                      ) : (
-                        <span className="badge badge-orange">Pending</span>
+            return (
+              <Card key={assignment.id}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg">{assignment.title}</CardTitle>
+                    <div className="flex items-center space-x-2">
+                      {assignment.status === 'submitted' && (
+                        <span className="flex items-center text-green-600 text-sm font-medium">
+                          <CheckCircle size={16} className="mr-1" />
+                          Submitted
+                        </span>
+                      )}
+                      {assignment.status === 'pending' && isOverdue && (
+                        <span className="flex items-center text-red-600 text-sm font-medium">
+                          <Clock size={16} className="mr-1" />
+                          Overdue
+                        </span>
                       )}
                     </div>
                   </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-gray-600 mb-4">{assignment.description}</p>
 
-                  {a.description && (
-                    <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{a.description}</p>
-                  )}
-
-                  <div className="flex items-center gap-4 text-sm" style={{ color: 'var(--text-muted)' }}>
-                    <span style={{ color: isOverdue && !sub ? 'var(--accent-red)' : undefined }}>
-                      <Calendar size={13} className="inline mr-1" />
-                      Due {new Date(a.due_date).toLocaleDateString()}
-                    </span>
-                    <span><Award size={13} className="inline mr-1" />{a.max_score} pts</span>
-                  </div>
-
-                  {/* Grade + feedback */}
-                  {sub?.score !== null && sub?.score !== undefined && (
-                    <div className="rounded-lg p-3 space-y-1" style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)' }}>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--accent-green)' }}>
-                        Score: {sub.score}/{a.max_score} ({Math.round((sub.score / a.max_score) * 100)}%)
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-700">Due Date:</span>
+                      <p className={isOverdue ? 'text-red-600' : 'text-gray-600'}>
+                        {new Date(assignment.dueDate).toLocaleDateString()} at{' '}
+                        {new Date(assignment.dueDate).toLocaleTimeString()}
                       </p>
-                      {sub.feedback && (
-                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                          <span className="font-medium" style={{ color: 'var(--accent-blue)' }}>Feedback: </span>
-                          {sub.feedback}
+                    </div>
+                    <div className="text-sm">
+                      <span className="font-medium text-gray-700">Max Score:</span>
+                      <p className="text-gray-600">{assignment.maxScore} points</p>
+                    </div>
+                    {assignment.grade !== undefined && (
+                      <div className="text-sm">
+                        <span className="font-medium text-gray-700">Your Score:</span>
+                        <p className="text-green-600 font-medium">
+                          {assignment.grade}/{assignment.maxScore}
                         </p>
-                      )}
+                      </div>
+                    )}
+                  </div>
+
+                  {assignment.feedback && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <h4 className="font-medium text-blue-900 mb-1">Teacher Feedback:</h4>
+                      <p className="text-blue-800 text-sm">{assignment.feedback}</p>
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-1">
-                    {!sub && !isOverdue && (
-                      <Button size="sm" variant={isShowing ? 'secondary' : 'gradient'}
-                        onClick={() => setShowSubmit(isShowing ? null : a.id)}>
-                        {isShowing ? 'Cancel' : 'Submit Assignment'}
+                  <div className="flex space-x-2">
+                    {!assignment.submitted && !isOverdue && (
+                      <Button
+                        onClick={() => setShowSubmissionForm(isShowingSubmission ? null : assignment.id)}
+                        className="flex-1"
+                      >
+                        Submit Assignment
                       </Button>
                     )}
-                    {sub && !sub.score && (
-                      <span className="text-xs" style={{ color: 'var(--text-muted)', alignSelf: 'center' }}>
-                        Awaiting grade...
-                      </span>
+                    {assignment.submitted && (
+                      <Button variant="secondary" className="flex-1">
+                        View Submission
+                      </Button>
                     )}
                   </div>
 
-                  {isShowing && studentId && (
-                    <div className="pt-1 border-t" style={{ borderColor: 'var(--border)' }}>
+                  {isShowingSubmission && (
+                    <div className="mt-4">
                       <SubmissionForm
-                        assignmentId={a.id}
-                        assignmentTitle={a.title}
-                        dueDate={a.due_date}
-                        maxScore={a.max_score}
-                        onSuccess={() => { setShowSubmit(null); fetchData() }}
+                        assignmentId={assignment.id}
+                        assignmentTitle={assignment.title}
+                        dueDate={assignment.dueDate}
+                        maxScore={assignment.maxScore}
+                        onSuccess={() => setShowSubmissionForm(null)}
                       />
                     </div>
                   )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </SectionCard>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      </div>
 
-      {/* Materials */}
-      <SectionCard title={`Course Materials (${materials.length})`} icon={<FileText size={15} style={{ color: 'var(--accent-orange)' }} />}>
-        {materials.length === 0 ? (
-          <div className="empty-state py-6">
-            <div className="empty-state-icon"><FileText size={22} /></div>
-            <h3>No materials yet</h3>
-          </div>
-        ) : (
-          <div className="divide-y" style={{ borderColor: 'var(--border)' }}>
-            {materials.map(m => (
-              <div key={m.id} className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.12)', color: 'var(--accent-orange)' }}>
-                    <FileText size={14} />
+      {/* Materials Section */}
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Course Materials</h2>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="space-y-3">
+              {materials.map((material) => (
+                <div
+                  key={material.id}
+                  className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="bg-red-100 text-red-600 p-2 rounded-lg">
+                      <FileText size={16} />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{material.title}</p>
+                      <p className="text-sm text-gray-600">{material.type} • {material.size}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{m.title}</p>
-                    <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-                      {new Date(m.created_at).toLocaleDateString()}
-                    </p>
-                  </div>
+                  <Button size="sm" variant="ghost">
+                    <Download size={16} />
+                  </Button>
                 </div>
-                {m.file_url && (
-                  <a href={proxyFileUrl(m.file_url, m.title)} target="_blank" rel="noopener noreferrer">
-                    <Button size="sm" variant="ghost"><Download size={14} /></Button>
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

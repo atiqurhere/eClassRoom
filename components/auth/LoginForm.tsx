@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { Mail, Lock, IdCard } from 'lucide-react'
 import { authService } from '@/lib/services/auth.service'
 import { loginSchema, type LoginInput } from '@/lib/utils/validators'
 import { Button } from '@/components/ui/Button'
@@ -15,9 +14,12 @@ import { toast } from 'sonner'
 export function LoginForm() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [loginMode, setLoginMode] = useState<'email' | 'student_id'>('email')
 
-  const { register, handleSubmit, formState: { errors }, reset } = useForm<LoginInput>({
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
   })
 
@@ -25,10 +27,12 @@ export function LoginForm() {
     try {
       setLoading(true)
       const result = await authService.signIn(data.email, data.password)
+
       if (result.user) {
-        toast.success('Welcome back!')
-        const role = result.role || 'student'
-        window.location.href = `/${role}/dashboard`
+        toast.success('Login successful!')
+        // Middleware will handle redirect to appropriate dashboard
+        router.push('/')
+        router.refresh()
       }
     } catch (error: any) {
       toast.error(error.message || 'Login failed. Please check your credentials.')
@@ -37,136 +41,34 @@ export function LoginForm() {
     }
   }
 
-  const handleStudentIdLogin = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const form = e.currentTarget
-    const studentId = (form.elements.namedItem('studentId') as HTMLInputElement)?.value
-    const password = (form.elements.namedItem('password') as HTMLInputElement)?.value
-
-    if (!studentId || !password) {
-      toast.error('Please fill in all fields')
-      return
-    }
-    try {
-      setLoading(true)
-      // Look up email by student ID
-      const res = await fetch('/api/auth/student-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ studentId, password }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Login failed')
-      toast.success('Welcome back!')
-      const role = data.role || 'student'
-      window.location.href = `/${role}/dashboard`
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
-    <div className="animate-fade-in">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
-          Welcome back 👋
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
-          Sign in to continue to your workspace
-        </p>
-      </div>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <Input
+        label="Email"
+        type="email"
+        placeholder="Enter your email"
+        error={errors.email?.message}
+        {...register('email')}
+      />
 
-      {/* Login mode toggle */}
-      <div className="flex rounded-lg p-1 mb-6" style={{ background: 'var(--bg-secondary)' }}>
-        <button
-          type="button"
-          onClick={() => { setLoginMode('email'); reset() }}
-          className="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
-          style={{
-            background: loginMode === 'email' ? 'var(--bg-card)' : 'transparent',
-            color: loginMode === 'email' ? 'var(--text-primary)' : 'var(--text-muted)',
-            border: loginMode === 'email' ? '1px solid var(--border)' : 'none',
-          }}
-        >
-          Email Login
-        </button>
-        <button
-          type="button"
-          onClick={() => { setLoginMode('student_id'); reset() }}
-          className="flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all"
-          style={{
-            background: loginMode === 'student_id' ? 'var(--bg-card)' : 'transparent',
-            color: loginMode === 'student_id' ? 'var(--text-primary)' : 'var(--text-muted)',
-            border: loginMode === 'student_id' ? '1px solid var(--border)' : 'none',
-          }}
-        >
-          Student ID
-        </button>
-      </div>
+      <Input
+        label="Password"
+        type="password"
+        placeholder="Enter your password"
+        error={errors.password?.message}
+        {...register('password')}
+      />
 
-      {loginMode === 'email' ? (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Email Address"
-            type="email"
-            placeholder="name@school.edu"
-            leftIcon={<Mail size={16} />}
-            error={errors.email?.message}
-            {...register('email')}
-          />
-          <Input
-            label="Password"
-            type="password"
-            placeholder="Enter your password"
-            leftIcon={<Lock size={16} />}
-            error={errors.password?.message}
-            {...register('password')}
-          />
+      <Button type="submit" className="w-full" loading={loading}>
+        Sign In
+      </Button>
 
-          <div className="flex justify-end">
-            <Link href="/forgot-password" className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
-              Forgot password?
-            </Link>
-          </div>
-
-          <Button type="submit" fullWidth loading={loading} variant="gradient" size="lg">
-            Sign In
-          </Button>
-        </form>
-      ) : (
-        <form onSubmit={handleStudentIdLogin} className="space-y-4">
-          <Input
-            label="Student ID"
-            name="studentId"
-            placeholder="e.g. STU-2026-001"
-            leftIcon={<IdCard size={16} />}
-          />
-          <Input
-            label="Password"
-            name="password"
-            type="password"
-            placeholder="Enter your password"
-            leftIcon={<Lock size={16} />}
-          />
-          <div className="flex justify-end">
-            <Link href="/forgot-password" className="text-xs font-medium" style={{ color: 'var(--accent-blue)' }}>
-              Forgot password?
-            </Link>
-          </div>
-          <Button type="submit" fullWidth loading={loading} variant="gradient" size="lg">
-            Sign In with Student ID
-          </Button>
-        </form>
-      )}
-
-      <p className="text-center text-sm mt-6" style={{ color: 'var(--text-muted)' }}>
-        Don&#39;t have an account?{' '}
-        <Link href="/signup" className="font-semibold" style={{ color: 'var(--accent-blue)' }}>
-          Contact your admin
+      <p className="text-center text-sm text-gray-600">
+        Don't have an account?{' '}
+        <Link href="/signup" className="text-primary-600 hover:text-primary-700 font-medium">
+          Sign up
         </Link>
       </p>
-    </div>
+    </form>
   )
 }

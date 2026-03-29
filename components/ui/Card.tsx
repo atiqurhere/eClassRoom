@@ -26,18 +26,18 @@ interface CardHeaderProps {
 export function CardHeader({ title, subtitle, action, icon, className = '' }: CardHeaderProps) {
   return (
     <div className={`section-card-header ${className}`}>
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex items-center gap-3">
         {icon && (
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'var(--bg-hover)' }}>
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'var(--bg-hover)' }}>
             {icon}
           </div>
         )}
-        <div className="min-w-0">
+        <div>
           <h3 className="section-card-title">{title}</h3>
           {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
         </div>
       </div>
-      {action && <div className="section-card-action">{action}</div>}
+      {action && <div>{action}</div>}
     </div>
   )
 }
@@ -55,21 +55,13 @@ interface SectionCardProps {
   children: ReactNode
   className?: string
   bodyClassName?: string
-  /** Set true when children include a <table> so we auto-add overflow-x-scroll */
-  scrollable?: boolean
 }
 
-export function SectionCard({ title, subtitle, action, icon, children, className = '', bodyClassName = '', scrollable }: SectionCardProps) {
+export function SectionCard({ title, subtitle, action, icon, children, className = '', bodyClassName = '' }: SectionCardProps) {
   return (
     <div className={`section-card ${className}`}>
       <CardHeader title={title} subtitle={subtitle} action={action} icon={icon} />
-      {scrollable ? (
-        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-          {children}
-        </div>
-      ) : (
-        <div className={`section-card-body ${bodyClassName}`}>{children}</div>
-      )}
+      <div className={`section-card-body ${bodyClassName}`}>{children}</div>
     </div>
   )
 }

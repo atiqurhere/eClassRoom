@@ -1,18 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+// Next.js 15: params is now a Promise
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
     const supabase = await createClient()
 
-    // Check authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser()
-
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const notificationId = params.id
+    const { id: notificationId } = await params
 
     // Mark notification as read
     const { error } = await supabase

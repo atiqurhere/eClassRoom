@@ -38,13 +38,7 @@ BEGIN
 END;
 $$;
 
--- -----------------------------------------------------------
--- HELPER: get_my_role()  – used in RLS policies
--- -----------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER AS $$
-  SELECT role FROM public.users WHERE id = auth.uid();
-$$;
+-- NOTE: get_my_role() is defined AFTER the users table below
 
 -- -----------------------------------------------------------
 -- 1. USERS  (extends auth.users)
@@ -64,11 +58,26 @@ CREATE TABLE IF NOT EXISTS public.users (
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can view own profile"       ON public.users FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Admins can view all users"        ON public.users FOR SELECT USING (public.get_my_role() = 'admin');
-CREATE POLICY "Teachers can view all users"      ON public.users FOR SELECT USING (public.get_my_role() = 'teacher');
+CREATE POLICY "Admins can view all users"        ON public.users FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Teachers can view all users"      ON public.users FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'teacher')
+);
 CREATE POLICY "Users can update own profile"     ON public.users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Service can insert users"         ON public.users FOR INSERT WITH CHECK (true);
-CREATE POLICY "Admins can delete users"          ON public.users FOR DELETE USING (public.get_my_role() = 'admin');
+CREATE POLICY "Admins can delete users"          ON public.users FOR DELETE USING (
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+-- -----------------------------------------------------------
+-- HELPER: get_my_role()  – used in all RLS policies below
+-- (defined here because it references public.users)
+-- -----------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.get_my_role()
+RETURNS TEXT LANGUAGE sql STABLE SECURITY DEFINER AS $$
+  SELECT role FROM public.users WHERE id = auth.uid();
+$$;
 
 CREATE TRIGGER update_users_updated_at
   BEFORE UPDATE ON public.users

@@ -64,9 +64,10 @@ export const STORAGE_BUCKETS = {
   MATERIALS: 'materials',
 } as const
 
-// Jitsi configuration
-export const JITSI_CONFIG = {
-  DOMAIN: process.env.NEXT_PUBLIC_JITSI_DOMAIN || 'meet.jit.si',
+// Zoom configuration
+export const ZOOM_CONFIG = {
+  API_BASE: 'https://api.zoom.us/v2',
+  TOKEN_URL: 'https://zoom.us/oauth/token',
 } as const
 
 // App routes

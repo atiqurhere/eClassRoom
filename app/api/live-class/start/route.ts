@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createZoomMeeting } from '@/lib/zoom'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(request: NextRequest) {
@@ -13,7 +14,6 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    // Support both classId (new) and courseId (legacy fallback)
     const { classId, courseId, title } = body
 
     if (!classId && !courseId) {
@@ -21,31 +21,48 @@ export async function POST(request: NextRequest) {
     }
     if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 })
 
-    // If classId provided, verify teacher is assigned to that class
+    // Verify teacher is assigned to this class
     if (classId) {
       const { data: cls } = await supabase.from('classes').select('id, teacher_id').eq('id', classId).single()
       if (!cls) return NextResponse.json({ error: 'Class not found' }, { status: 404 })
       if (cls.teacher_id !== user.id) return NextResponse.json({ error: 'You are not assigned to this class' }, { status: 403 })
     }
 
-    const roomId = `class_${(classId || courseId)}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    // ── Create Zoom meeting ───────────────────────────────────────────────────
+    let zoomMeeting: { meeting_id: string; join_url: string; start_url: string } | null = null
+    try {
+      zoomMeeting = await createZoomMeeting(title, 90)
+    } catch (zoomErr: any) {
+      console.error('Zoom meeting creation failed:', zoomErr?.message)
+      // Fail hard — no Zoom = no class
+      return NextResponse.json(
+        { error: `Could not create Zoom meeting: ${zoomErr?.message || 'Unknown error'}` },
+        { status: 502 }
+      )
+    }
+
+    // ── Save to DB (room_id kept for backwards compat — we reuse zoom_meeting_id) ──
+    const roomId = `zoom_${zoomMeeting.meeting_id}`
 
     const { data: liveClass, error: createError } = await supabase
       .from('live_classes')
       .insert({
-        class_id:   classId  || null,
-        teacher_id: user.id,
-        room_id:    roomId,
+        class_id:       classId || null,
+        teacher_id:     user.id,
+        room_id:        roomId,
         title,
-        start_time: new Date().toISOString(),
-        status:     'live',
+        start_time:     new Date().toISOString(),
+        status:         'live',
+        zoom_meeting_id: zoomMeeting.meeting_id,
+        zoom_join_url:   zoomMeeting.join_url,
+        zoom_start_url:  zoomMeeting.start_url,
       })
       .select()
       .single()
 
     if (createError) return NextResponse.json({ error: createError.message }, { status: 500 })
 
-    // Notify students enrolled in the course that owns this class
+    // ── Notify enrolled students ──────────────────────────────────────────────
     if (classId) {
       await supabase.from('notifications').insert({
         title:       'Live Class Started',

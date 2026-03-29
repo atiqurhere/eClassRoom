@@ -26,7 +26,7 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return
 
   // Never intercept:
-  // - External domains (Jitsi, Supabase, Google, analytics, etc.)
+  // - External domains (Zoom, Supabase, Google, analytics, etc.)
   // - Our own API routes
   // - The live-room page (must always be fresh, never served stale)
   // - Next.js internal routes

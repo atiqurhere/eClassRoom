@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
-const JITSI_DOMAIN = 'meet.jit.si'
 
+// Zoom runs in its own native app — no embedded iframe needed.
+// We still need to allow camera/mic for browser-based Zoom (web client fallback).
 const securityHeaders = [
   {
     key: 'X-DNS-Prefetch-Control',
@@ -23,25 +24,27 @@ const securityHeaders = [
     value: 'strict-origin-when-cross-origin',
   },
   {
-    // Allow camera and microphone for Jitsi
+    // Camera/mic allowed for Zoom Web SDK (browser fallback) and screen-share
     key: 'Permissions-Policy',
-    value: 'camera=(self "https://meet.jit.si"), microphone=(self "https://meet.jit.si"), display-capture=(self "https://meet.jit.si"), geolocation=()',
+    value: 'camera=(self "https://zoom.us"), microphone=(self "https://zoom.us"), display-capture=(self "https://zoom.us"), geolocation=()',
   },
   {
     key: 'Content-Security-Policy',
     value: [
       "default-src 'self'",
-      // Jitsi external_api.js is served from meet.jit.si, NOT *.jitsi.net
-      `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${JITSI_DOMAIN} *.${JITSI_DOMAIN} 8x8.vc *.jitsi.net`,
+      // Scripts: allow Zoom Web SDK CDN
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline' zoom.us *.zoom.us",
       "style-src 'self' 'unsafe-inline' fonts.googleapis.com",
       "font-src 'self' fonts.gstatic.com data:",
-      `img-src 'self' data: blob: *.supabase.co *.supabase.in ${JITSI_DOMAIN} *.${JITSI_DOMAIN}`,
-      // blob: needed for recording previews, WebRTC streams
-      `media-src 'self' blob: ${JITSI_DOMAIN} *.${JITSI_DOMAIN}`,
-      `connect-src 'self' *.supabase.co *.supabase.in wss://*.supabase.co ${JITSI_DOMAIN} *.${JITSI_DOMAIN} wss://${JITSI_DOMAIN} 8x8.vc *.jitsi.net *.youtube.com`,
-      // allow Jitsi iframe to render inside our pages
-      `frame-src 'self' ${JITSI_DOMAIN} *.${JITSI_DOMAIN} 8x8.vc *.youtube.com *.youtube-nocookie.com docs.google.com`,
-      // worker-src for WebRTC
+      // Images: Supabase storage + YouTube thumbnails
+      "img-src 'self' data: blob: *.supabase.co *.supabase.in *.ytimg.com *.youtube.com www.gravatar.com",
+      // Media: blob: for any WebRTC/recording previews
+      "media-src 'self' blob: zoom.us *.zoom.us",
+      // Connect: Supabase realtime + Zoom API + YouTube API
+      "connect-src 'self' *.supabase.co *.supabase.in wss://*.supabase.co zoom.us *.zoom.us www.googleapis.com *.youtube.com",
+      // Frames: allow YouTube embeds + Office viewer for material viewer + Zoom web
+      "frame-src 'self' zoom.us *.zoom.us *.youtube.com *.youtube-nocookie.com docs.google.com view.officeapps.live.com",
+      // Web workers (service worker, WebRTC)
       "worker-src 'self' blob:",
     ].join('; '),
   },
@@ -69,17 +72,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        // Apply security headers to all routes
         source: '/(.*)',
         headers: securityHeaders,
       },
     ]
   },
 
-  // Suppress source maps in production for security
   productionBrowserSourceMaps: false,
 
-  // Required for correct manifest generation with route groups in Next.js 15
   experimental: {
     optimizePackageImports: ['lucide-react'],
   },

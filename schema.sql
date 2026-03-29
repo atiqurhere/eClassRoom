@@ -144,17 +144,22 @@ CREATE INDEX idx_teacher_invites_user_id ON public.teacher_invites(user_id);
 -- 7. LIVE CLASSES (keyed to class_id — teacher starts from their class)
 -- ──────────────────────────────────────────────────────────────
 CREATE TABLE public.live_classes (
-  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  class_id      uuid NOT NULL REFERENCES public.classes(id) ON DELETE CASCADE,
-  teacher_id    uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
-  room_id       text UNIQUE NOT NULL,
-  title         text NOT NULL,
-  scheduled_at  timestamptz,
-  start_time    timestamptz,
-  end_time      timestamptz,
-  status        text DEFAULT 'scheduled' CHECK (status IN ('scheduled','live','ended')),
-  recording_url text,
-  created_at    timestamptz DEFAULT now() NOT NULL
+  id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  class_id         uuid REFERENCES public.classes(id) ON DELETE CASCADE,  -- nullable: ad-hoc sessions have no class
+  teacher_id       uuid NOT NULL REFERENCES public.users(id)   ON DELETE CASCADE,
+  room_id          text UNIQUE NOT NULL,
+  title            text NOT NULL,
+  scheduled_at     timestamptz,
+  start_time       timestamptz,
+  end_time         timestamptz,
+  status           text DEFAULT 'scheduled' CHECK (status IN ('scheduled','live','ended')),
+  -- Zoom integration fields
+  zoom_meeting_id  text,
+  zoom_join_url    text,
+  zoom_start_url   text,
+  -- Recording (YouTube URL stored here after worker uploads)
+  recording_url    text,
+  created_at       timestamptz DEFAULT now() NOT NULL
 );
 ALTER TABLE public.live_classes ENABLE ROW LEVEL SECURITY;
 -- Students enrolled in the course that owns the class can view

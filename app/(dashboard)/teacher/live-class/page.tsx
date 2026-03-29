@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Video, Play, Square, RefreshCw, Clock, Users, ExternalLink } from 'lucide-react'
+import { Video, Play, Square, RefreshCw, Clock, Users, ExternalLink, Youtube } from 'lucide-react'
 import { createClient }  from '@/lib/supabase/client'
 import { useAuth }       from '@/lib/hooks/useAuth'
 import { Button }        from '@/components/ui/Button'
@@ -9,12 +9,11 @@ import { SectionCard }   from '@/components/ui/Card'
 import { SkeletonRow }   from '@/components/ui/Loading'
 import { toast }         from 'sonner'
 
-/** Open the Jitsi room in a new browser tab (standalone /live-room page) */
-function openLiveRoom(roomId: string, title: string, userName: string, userEmail: string, isModerator: boolean) {
+/** Open Zoom in a new browser tab via the /live-room relay page */
+function openZoomRoom(zoomUrl: string, title: string, userName: string, isModerator: boolean) {
   const params = new URLSearchParams({
-    room:  roomId,
+    zoom:  zoomUrl,
     name:  userName,
-    email: userEmail,
     title: title,
     ...(isModerator ? { mod: '1' } : {}),
   })
@@ -42,7 +41,7 @@ export default function TeacherLiveClassPage() {
         .order('class_name'),
       supabase
         .from('live_classes')
-        .select('id, title, status, room_id, start_time, class_id, classes(class_name, courses(name))')
+        .select('id, title, status, room_id, zoom_join_url, zoom_start_url, recording_url, start_time, class_id, classes(class_name, courses(name))')
         .eq('teacher_id', user.id)
         .order('start_time', { ascending: false })
         .limit(30),
@@ -65,18 +64,21 @@ export default function TeacherLiveClassPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to start')
+
       const lc = json.liveClass
-      toast.success(`Session started for ${className}`)
+      toast.success(`Session started for ${className} — opening Zoom`)
       await fetchData()
-      // Open in new tab immediately after session created
-      if (lc?.room_id) {
-        openLiveRoom(
-          lc.room_id,
+
+      // Open Zoom start_url (host view)
+      if (lc?.zoom_start_url) {
+        openZoomRoom(
+          lc.zoom_start_url,
           lc.title || className,
           user.full_name || user.email || 'Teacher',
-          user.email || '',
           true,
         )
+      } else {
+        toast.warning('Session created but Zoom URL not available. Check Zoom credentials.')
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to start live class')
@@ -95,7 +97,7 @@ export default function TeacherLiveClassPage() {
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Failed to end')
-      toast.success('Session ended')
+      toast.success('Session ended — recording will be uploaded to YouTube automatically')
       fetchData()
     } catch (err: any) {
       toast.error(err.message || 'Failed to end session')
@@ -112,7 +114,7 @@ export default function TeacherLiveClassPage() {
       <div className="page-header flex items-center justify-between">
         <div>
           <h1>Live Classes</h1>
-          <p>Start and manage live sessions. Sessions open in a new tab with full Jitsi controls.</p>
+          <p>Start and manage live sessions via Zoom. Recordings are automatically uploaded to YouTube.</p>
         </div>
         <Button variant="ghost" size="sm" leftIcon={<RefreshCw size={14} />} onClick={fetchData}>Refresh</Button>
       </div>
@@ -128,14 +130,17 @@ export default function TeacherLiveClassPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={14} />}
-              onClick={() => openLiveRoom(
-                live[0].room_id, live[0].title,
-                user?.full_name || user?.email || 'Teacher',
-                user?.email || '', true,
-              )}>
-              Re-join
-            </Button>
+            {live[0].zoom_start_url && (
+              <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={14} />}
+                onClick={() => openZoomRoom(
+                  live[0].zoom_start_url,
+                  live[0].title,
+                  user?.full_name || user?.email || 'Teacher',
+                  true,
+                )}>
+                Re-join Zoom
+              </Button>
+            )}
             <Button variant="danger" size="sm" leftIcon={<Square size={14} />}
               loading={ending === live[0].id}
               onClick={() => endSession(live[0].id)}>
@@ -167,14 +172,17 @@ export default function TeacherLiveClassPage() {
                       <td style={{ textAlign: 'right' }}>
                         {liveSes ? (
                           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                            <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={13} />}
-                              onClick={() => openLiveRoom(
-                                liveSes.room_id, liveSes.title,
-                                user?.full_name || user?.email || 'Teacher',
-                                user?.email || '', true,
-                              )}>
-                              Open Room
-                            </Button>
+                            {liveSes.zoom_start_url && (
+                              <Button variant="gradient" size="sm" leftIcon={<ExternalLink size={13} />}
+                                onClick={() => openZoomRoom(
+                                  liveSes.zoom_start_url,
+                                  liveSes.title,
+                                  user?.full_name || user?.email || 'Teacher',
+                                  true,
+                                )}>
+                                Open Zoom
+                              </Button>
+                            )}
                             <Button variant="danger" size="sm" leftIcon={<Square size={13} />}
                               loading={ending === liveSes.id}
                               onClick={() => endSession(liveSes.id)}>
@@ -205,7 +213,7 @@ export default function TeacherLiveClassPage() {
             <p style={{ textAlign: 'center', padding: 30, color: 'var(--text-muted)', fontSize: '0.875rem' }}>No past sessions yet.</p>
           ) : (
             <table className="data-table">
-              <thead><tr><th>Session</th><th>Class</th><th>Date</th><th style={{ textAlign: 'right' }}>Status</th></tr></thead>
+              <thead><tr><th>Session</th><th>Class</th><th>Date</th><th style={{ textAlign: 'right' }}>Recording</th></tr></thead>
               <tbody>
                 {ended.map(s => (
                   <tr key={s.id}>
@@ -213,7 +221,20 @@ export default function TeacherLiveClassPage() {
                     <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{(s.classes as any)?.class_name}</td>
                     <td style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{s.start_time ? new Date(s.start_time).toLocaleDateString() : '—'}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-hover)', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{s.status}</span>
+                      {s.recording_url ? (
+                        <a
+                          href={s.recording_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'rgba(255,0,0,0.1)', color: '#f00', textDecoration: 'none' }}
+                        >
+                          <Youtube size={11} /> YouTube
+                        </a>
+                      ) : (
+                        <span style={{ padding: '3px 8px', borderRadius: 6, fontSize: '0.7rem', fontWeight: 700, background: 'var(--bg-hover)', color: 'var(--text-muted)' }}>
+                          Processing…
+                        </span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -222,6 +243,13 @@ export default function TeacherLiveClassPage() {
           )}
         </SectionCard>
       </div>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 3px rgba(34,197,94,0.3); }
+          50%       { box-shadow: 0 0 0 6px rgba(34,197,94,0.1); }
+        }
+      `}</style>
     </div>
   )
 }

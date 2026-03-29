@@ -20,10 +20,11 @@ interface CardHeaderProps {
   subtitle?: string
   action?: ReactNode
   icon?: ReactNode
+  children?: ReactNode
   className?: string
 }
 
-export function CardHeader({ title, subtitle, action, icon, className = '' }: CardHeaderProps) {
+export function CardHeader({ title, subtitle, action, icon, children, className = '' }: CardHeaderProps) {
   return (
     <div className={`section-card-header ${className}`}>
       <div className="flex items-center gap-3">
@@ -38,7 +39,15 @@ export function CardHeader({ title, subtitle, action, icon, className = '' }: Ca
         </div>
       </div>
       {action && <div>{action}</div>}
+      {children}
     </div>
+  )
+}
+
+/** Standalone card title — used as a heading inside arbitrary card layouts */
+export function CardTitle({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <h3 className={`section-card-title ${className}`}>{children}</h3>
   )
 }
 
@@ -46,8 +55,8 @@ export function CardContent({ children, className = '' }: { children: ReactNode;
   return <div className={`section-card-body ${className}`}>{children}</div>
 }
 
-// Section card (with header+body structure)
-interface SectionCardProps {
+// Section card (with header + body structure)
+export interface SectionCardProps {
   title: string
   subtitle?: string
   action?: ReactNode
@@ -55,13 +64,23 @@ interface SectionCardProps {
   children: ReactNode
   className?: string
   bodyClassName?: string
+  /** Makes the card body vertically scrollable (max-height: 420px) */
+  scrollable?: boolean
 }
 
-export function SectionCard({ title, subtitle, action, icon, children, className = '', bodyClassName = '' }: SectionCardProps) {
+export function SectionCard({
+  title, subtitle, action, icon, children,
+  className = '', bodyClassName = '', scrollable = false,
+}: SectionCardProps) {
   return (
     <div className={`section-card ${className}`}>
       <CardHeader title={title} subtitle={subtitle} action={action} icon={icon} />
-      <div className={`section-card-body ${bodyClassName}`}>{children}</div>
+      <div
+        className={`section-card-body ${bodyClassName}`}
+        style={scrollable ? { overflowY: 'auto', maxHeight: 420 } : undefined}
+      >
+        {children}
+      </div>
     </div>
   )
 }

@@ -22,9 +22,7 @@ export function SignupForm() {
     formState: { errors },
   } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
-    defaultValues: {
-      role: 'student',
-    },
+    defaultValues: { role: 'student' },
   })
 
   const selectedRole = watch('role')
@@ -32,15 +30,8 @@ export function SignupForm() {
   const onSubmit = async (data: SignupInput) => {
     try {
       setLoading(true)
-      await authService.signUp(
-        data.email,
-        data.password,
-        data.fullName,
-        data.role,
-        data.studentId
-      )
-
-      toast.success('Account created successfully! Please sign in.')
+      await authService.signUp(data.email, data.password, data.fullName, data.role, data.studentId)
+      toast.success('Account created! Please sign in.')
       router.push('/login')
     } catch (error: any) {
       toast.error(error.message || 'Signup failed. Please try again.')
@@ -50,7 +41,7 @@ export function SignupForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <Input
         label="Full Name"
         type="text"
@@ -68,18 +59,17 @@ export function SignupForm() {
       />
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: 6 }}>
           Role
         </label>
-        <select
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent outline-none"
-          {...register('role')}
-        >
+        <select className="form-select" {...register('role')}>
           <option value="student">Student</option>
           <option value="teacher">Teacher</option>
           <option value="admin">Admin</option>
         </select>
-        {errors.role && <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>}
+        {errors.role && (
+          <p style={{ marginTop: 4, fontSize: '0.8125rem', color: 'var(--accent-red)' }}>{errors.role.message}</p>
+        )}
       </div>
 
       {selectedRole === 'student' && (
@@ -108,13 +98,13 @@ export function SignupForm() {
         {...register('confirmPassword')}
       />
 
-      <Button type="submit" className="w-full" loading={loading}>
+      <Button type="submit" variant="gradient" size="lg" fullWidth loading={loading} style={{ marginTop: 4 }}>
         Create Account
       </Button>
 
-      <p className="text-center text-sm text-gray-600">
+      <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)' }}>
         Already have an account?{' '}
-        <Link href="/login" className="text-primary-600 hover:text-primary-700 font-medium">
+        <Link href="/login" style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 600 }}>
           Sign in
         </Link>
       </p>

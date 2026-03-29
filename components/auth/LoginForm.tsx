@@ -27,10 +27,8 @@ export function LoginForm() {
     try {
       setLoading(true)
       const result = await authService.signIn(data.email, data.password)
-
       if (result.user) {
         toast.success('Login successful!')
-        // Middleware will handle redirect to appropriate dashboard
         router.push('/')
         router.refresh()
       }
@@ -42,7 +40,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Input
         label="Email"
         type="email"
@@ -59,13 +57,22 @@ export function LoginForm() {
         {...register('password')}
       />
 
-      <Button type="submit" className="w-full" loading={loading}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -12 }}>
+        <Link
+          href="/forgot-password"
+          style={{ fontSize: '0.8125rem', color: 'var(--accent-blue)', textDecoration: 'none' }}
+        >
+          Forgot password?
+        </Link>
+      </div>
+
+      <Button type="submit" variant="gradient" size="lg" fullWidth loading={loading}>
         Sign In
       </Button>
 
-      <p className="text-center text-sm text-gray-600">
-        Don't have an account?{' '}
-        <Link href="/signup" className="text-primary-600 hover:text-primary-700 font-medium">
+      <p style={{ textAlign: 'center', fontSize: '0.875rem', color: 'var(--text-muted)', marginTop: 4 }}>
+        Don&apos;t have an account?{' '}
+        <Link href="/signup" style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 600 }}>
           Sign up
         </Link>
       </p>

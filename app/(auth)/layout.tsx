@@ -3,23 +3,62 @@ import { GraduationCap } from 'lucide-react'
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary-600 text-white p-3 rounded-full">
-              <GraduationCap size={32} />
-            </div>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg-primary)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px 16px',
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Ambient glow blobs */}
+      <div className="auth-glow auth-glow-blue" />
+      <div className="auth-glow auth-glow-purple" />
+
+      <div style={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 32 }}>
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 56,
+              height: 56,
+              borderRadius: '16px',
+              background: 'var(--gradient-1)',
+              boxShadow: 'var(--shadow-glow)',
+              marginBottom: 16,
+            }}
+          >
+            <GraduationCap size={28} color="#fff" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">E-Classroom LMS</h1>
-          <p className="text-gray-600 mt-2">Modern Learning Management System</p>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            E-Classroom LMS
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: 4 }}>
+            Modern Learning Management System
+          </p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-8">
+        {/* Card */}
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 16,
+            padding: 32,
+            boxShadow: 'var(--shadow-lg)',
+          }}
+        >
           {children}
         </div>
 
-        <p className="text-center text-sm text-gray-600 mt-6">
+        <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 24 }}>
           © 2026 E-Classroom. All rights reserved.
         </p>
       </div>

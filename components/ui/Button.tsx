@@ -1,6 +1,6 @@
 'use client'
 
-import { forwardRef, ButtonHTMLAttributes, ReactNode } from 'react'
+import React, { forwardRef, ButtonHTMLAttributes, ReactNode, isValidElement, cloneElement } from 'react'
 import { Loader2 } from 'lucide-react'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,13 +11,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   rightIcon?: ReactNode
   fullWidth?: boolean
   /**
-   * When true, Button renders its single child directly (e.g. a Next.js <Link>)
-   * instead of wrapping in a <button>. The child must accept className + onClick.
+   * When true, merges button styles into the single child element (e.g. Next.js <Link>).
+   * The child must accept a `className` prop. No <button> wrapper is rendered.
    */
   asChild?: boolean
 }
 
-const variantClasses = {
+const variantClasses: Record<NonNullable<ButtonProps['variant']>, string> = {
   primary:   'btn-primary',
   secondary: 'btn-secondary',
   danger:    'btn-danger',
@@ -26,7 +26,7 @@ const variantClasses = {
   gradient:  'inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-gradient-1 hover:opacity-90 transition-all cursor-pointer shadow-glow',
 }
 
-const sizeClasses = {
+const sizeClasses: Record<NonNullable<ButtonProps['size']>, string> = {
   sm: '!px-3 !py-1.5 !text-xs',
   md: '',
   lg: '!px-6 !py-3 !text-base',
@@ -53,17 +53,15 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>((
     sizeClasses[size],
     fullWidth ? 'w-full' : '',
     className,
-  ].join(' ')
+  ].filter(Boolean).join(' ')
 
-  // asChild: clone the single child element and apply button styling to it
-  if (asChild && children) {
-    const child = children as React.ReactElement<{ className?: string }>
-    if (child && typeof child === 'object' && 'props' in child) {
-      return {
-        ...child,
-        props: { ...child.props, className: `${classes} ${child.props.className ?? ''}`.trim() },
-      } as unknown as React.ReactElement
-    }
+  // asChild: merge button classes onto the child element (e.g. a Next.js <Link>)
+  if (asChild && isValidElement<{ className?: string }>(children)) {
+    return cloneElement(children, {
+      className: [classes, (children.props as { className?: string }).className]
+        .filter(Boolean)
+        .join(' '),
+    })
   }
 
   return (

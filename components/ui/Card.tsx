@@ -16,14 +16,24 @@ export function Card({ children, className = '', hover = false, padding = 'p-6' 
 }
 
 interface CardHeaderProps {
-  title: string
+  title?: string
   subtitle?: string
   action?: ReactNode
   icon?: ReactNode
   className?: string
+  children?: ReactNode
 }
 
-export function CardHeader({ title, subtitle, action, icon, className = '' }: CardHeaderProps) {
+export function CardHeader({ title, subtitle, action, icon, className = '', children }: CardHeaderProps) {
+  // If children are passed directly, render as a simple flex container
+  if (children) {
+    return (
+      <div className={`section-card-header ${className}`}>
+        {children}
+      </div>
+    )
+  }
+  // Otherwise use the structured title/icon/action layout
   return (
     <div className={`section-card-header ${className}`}>
       <div className="flex items-center gap-3 min-w-0">
@@ -33,7 +43,7 @@ export function CardHeader({ title, subtitle, action, icon, className = '' }: Ca
           </div>
         )}
         <div className="min-w-0">
-          <h3 className="section-card-title">{title}</h3>
+          {title && <h3 className="section-card-title">{title}</h3>}
           {subtitle && <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>{subtitle}</p>}
         </div>
       </div>

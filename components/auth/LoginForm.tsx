@@ -41,8 +41,10 @@ export function LoginForm() {
       setLoading(true)
       const result = await authService.signIn(data.email, data.password)
       if (result.user) {
+        // role lives in public.users, not in the Supabase auth response
+        const profile = await authService.getCurrentUser()
         toast.success('Welcome back!')
-        const role = result.role || 'student'
+        const role = profile?.role || 'student'
         window.location.href = `/${role}/dashboard`
       }
     } catch (error: any) {
